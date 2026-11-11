@@ -69,6 +69,10 @@ const Noir = definePreset(Aura, {
 })
 
 const siteUrl = (process.env.NUXT_PUBLIC_SITE_URL || 'https://drop.micropue.com.cn').replace(/\/+$/, '')
+// 项目内容走独立域名，避免用户脚本和站点同源
+const contentHost = (process.env.NUXT_CONTENT_HOST || 'dropcontent.micropue.com.cn')
+  .replace(/^https?:\/\//, '').replace(/\/+$/, '')
+const contentUrl = (process.env.NUXT_PUBLIC_CONTENT_URL || `https://${contentHost}`).replace(/\/+$/, '')
 
 export default defineNuxtConfig({
   app: {
@@ -90,6 +94,9 @@ export default defineNuxtConfig({
         { name: 'twitter:card', content: 'summary' },
         { name: 'twitter:title', content: 'DROP — Free Static Site Hosting' },
         { name: 'twitter:description', content: 'DROP hosts static HTML, CSS and JS projects for free.' }
+      ],
+      link: [
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }
       ]
     }
   },
@@ -106,8 +113,10 @@ export default defineNuxtConfig({
     }
   },
   runtimeConfig: {
+    contentHost,
     public: {
-      siteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://drop.micropue.com.cn'
+      siteUrl,
+      contentUrl
     }
   },
   devServer: {

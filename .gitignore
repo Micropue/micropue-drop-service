@@ -25,6 +25,7 @@ logs
 !.env.production.example
 
 # Internal docs (not for public repository)
+docs/
 docs-internal/
 
 # Dev logs
