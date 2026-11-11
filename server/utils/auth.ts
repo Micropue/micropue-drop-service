@@ -59,9 +59,6 @@ function sessionSecret() {
 
 const secureCookie = () => process.env.NODE_ENV === 'production'
 
-// 内容域与主站不同源；生产用父域 Cookie 让内容域也能识别所有者（仅服务端可读）
-const sessionCookieDomain = () => process.env.AUTH_COOKIE_DOMAIN || undefined
-
 export function setOAuthState(event: H3Event, state: string) {
   setCookie(event, STATE_COOKIE, state, {
     httpOnly: true,
@@ -92,13 +89,12 @@ export async function createSession(event: H3Event, bitsId: string) {
     sameSite: 'lax',
     secure: secureCookie(),
     path: '/',
-    domain: sessionCookieDomain(),
     maxAge: SESSION_MAX_AGE
   })
 }
 
 export function clearSession(event: H3Event) {
-  deleteCookie(event, SESSION_COOKIE, { path: '/', domain: sessionCookieDomain() })
+  deleteCookie(event, SESSION_COOKIE, { path: '/' })
 }
 
 export async function getSessionUser(event: H3Event): Promise<DropUser | null> {

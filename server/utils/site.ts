@@ -2,7 +2,6 @@ import { scryptSync, timingSafeEqual } from 'node:crypto'
 import { jwtVerify, SignJWT } from 'jose'
 import type { H3Event } from 'h3'
 import type { RowDataPacket } from 'mysql2/promise'
-import { getSessionUser } from './auth'
 import { useDb } from './db'
 import { useRedis } from './redis'
 import type { ProjectVisibility } from './projects'
@@ -189,10 +188,7 @@ export async function serveProject(event: H3Event, username: string, slug: strin
 
   if (!project.enabled) return notFound(event, 'This site is currently unavailable.')
 
-  const user = await getSessionUser(event)
-  const isOwner = Boolean(user && user.bitsId === project.owner_bits_id)
-
-  if (project.visibility === 'password' && !isOwner) {
+  if (project.visibility === 'password') {
     if (!project.password_hash) return notFound(event, 'This project is not available.')
 
     if (!(await hasUnlock(event, project.sid))) {

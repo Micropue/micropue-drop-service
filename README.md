@@ -85,7 +85,7 @@ All dynamic configuration lives in `.env` (see `.env.example`):
 | Site | `NUXT_PUBLIC_SITE_URL` |
 | Content domain | `NUXT_CONTENT_HOST`, `NUXT_PUBLIC_CONTENT_URL` |
 | BITS OAuth | `BITS_OAUTH_ORIGIN`, `BITS_OAUTH_CLIENT_ID`, `BITS_OAUTH_CLIENT_SECRET`, `BITS_OAUTH_REDIRECT_URI` |
-| Session | `AUTH_SECRET`, `AUTH_COOKIE_DOMAIN` |
+| Session | `AUTH_SECRET` |
 | Deployment test App | `BITS_STAGING_CLIENT_ID`, `BITS_STAGING_CLIENT_SECRET`, `BITS_STAGING_REDIRECT_URI` |
 
 Secrets must never be committed to the repository.
@@ -141,7 +141,7 @@ Projects are served by Nitro straight from MySQL — nothing is written to disk 
 - The URL without the trailing slash is redirected (308) so relative `assets/...` links keep working.
 - `/` returns `index.html`; any other request is an exact file lookup (`/pages/about.html`, `/assets/style.css`), so traversal paths simply 404.
 - Content types: `.html` → `text/html`, `.css` → `text/css`, `.js` → `text/javascript`. Unknown extensions are not servable.
-- Visibility is enforced on every request: `password` shows a password form and stores a signed `drop_unlock_*` cookie for 12h. The owner bypasses it.
+- Visibility is enforced on every request: `password` shows a password form to everyone (owners included) and stores a signed `drop_unlock_*` cookie for 12h.
 - The dashboard switch (`enabled`) disables the site entirely: every request returns 404 while off.
 - On the content domain, app pages and `/api/*` are 404; only project files and `/api/unlock/*` are reachable.
 - Password attempts are limited to 10 per 10 minutes per project + IP in Redis.
@@ -153,8 +153,6 @@ Set the content host in `.env`:
 ```bash
 NUXT_CONTENT_HOST=dropcontent.micropue.com.cn
 NUXT_PUBLIC_CONTENT_URL=https://dropcontent.micropue.com.cn
-# 生产让内容域也能识别所有者（HttpOnly，仅服务端可读）
-AUTH_COOKIE_DOMAIN=.micropue.com.cn
 ```
 
 Local development: use `dropcontent.localhost` (Chrome/Safari resolve `*.localhost` to loopback, no hosts file needed):
@@ -162,10 +160,9 @@ Local development: use `dropcontent.localhost` (Chrome/Safari resolve `*.localho
 ```bash
 NUXT_CONTENT_HOST=dropcontent.localhost
 NUXT_PUBLIC_CONTENT_URL=http://dropcontent.localhost:3678
-AUTH_COOKIE_DOMAIN=
 ```
 
-Then visit `http://dropcontent.localhost:3678/micropue/personal-site/`. With `AUTH_COOKIE_DOMAIN` empty the owner session stays on the main host, so owner bypass on password projects only works on the content domain in production.
+Then visit `http://dropcontent.localhost:3678/micropue/personal-site/`. Password projects ask for the password for everyone, so no extra cookie setup is needed.
 
 ### Reverse proxy
 

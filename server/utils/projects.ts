@@ -251,7 +251,7 @@ export async function getProject(event: H3Event, sid: string) {
   const user = await requireUser(event)
 
   const [rows] = await useDb().query<RowDataPacket[]>(
-    'SELECT `sid`, `name`, `slug`, `visibility`, `folders`, `updated_at` FROM `projects` WHERE `sid` = ? AND `owner_bits_id` = ? LIMIT 1',
+    'SELECT `sid`, `name`, `slug`, `visibility`, `folders`, `password_hash`, `updated_at` FROM `projects` WHERE `sid` = ? AND `owner_bits_id` = ? LIMIT 1',
     [sid, user.bitsId]
   )
   const row = rows[0]
@@ -272,6 +272,7 @@ export async function getProject(event: H3Event, sid: string) {
     name: String(row.name),
     slug: String(row.slug),
     visibility: row.visibility as ProjectVisibility,
+    hasPassword: Boolean(row.password_hash),
     folders,
     files: fileRows.map(file => ({
       name: String(file.name),

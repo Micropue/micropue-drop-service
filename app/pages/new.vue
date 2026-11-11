@@ -137,8 +137,9 @@
         <label v-if="visibility === 'password'" class="field">
           <span>Password</span>
           <InputText v-model="password" type="password" maxlength="128"
-            :placeholder="savedAsPassword ? 'Leave blank to keep current password' : 'At least 6 characters'" />
+            :placeholder="savedAsPassword ? 'Leave blank to keep current password' : 'Set a password (at least 6 characters)'" />
         </label>
+        <p v-if="needsPassword" class="hint hint--warn">This project has no password yet. Set one before sharing it.</p>
         <p class="hint">{{ visibilityHint }}</p>
         <p v-if="error" class="error" role="alert">{{ error }}</p>
       </div>
@@ -496,7 +497,7 @@ async function loadProject() {
     slug.value = project.slug
     slugTouched.value = true
     visibility.value = project.visibility
-    savedAsPassword.value = project.visibility === 'password'
+    savedAsPassword.value = project.visibility === 'password' && Boolean(project.hasPassword)
     folders.value = project.folders
     files.value = project.files
     savedPath.value = project.path
@@ -504,6 +505,8 @@ async function loadProject() {
     selection.value = project.files[0] ? { kind: 'file', path: project.files[0].name } : null
     rebuildTree()
     lastSaved.value = new Date()
+    // 迁移来的密码项目没有密码：打开设置让所有者补一个
+    if (project.visibility === 'password' && !project.hasPassword) settingsDialog.value = true
     await nextTick()
     dirty.value = false
   } catch {
@@ -523,6 +526,8 @@ const visibilityHint = computed(() => {
   if (visibility.value === 'public') return 'Anyone with the link can open this project.'
   return 'Visitors need the password to open this project.'
 })
+
+const needsPassword = computed(() => visibility.value === 'password' && !savedAsPassword.value)
 
 const statusText = computed(() => {
   if (loadingProject.value) return 'Loading…'
@@ -1128,6 +1133,10 @@ onBeforeRouteLeave(to => {
   font-size: 0.72rem;
   line-height: 1.5;
   color: var(--p-text-muted-color);
+
+  &--warn {
+    color: var(--p-amber-600);
+  }
 
   code {
     font-family: var(--font-code);
