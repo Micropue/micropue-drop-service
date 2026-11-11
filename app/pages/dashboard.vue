@@ -253,7 +253,7 @@ async function confirmDelete() {
   width: 90%;
   max-width: 1300px;
   margin: 0 auto;
-  padding: clamp(4rem, 12vh, 8rem) 0 6rem;
+  padding: 2.5rem 0 6rem;
 }
 
 .head {
