@@ -146,8 +146,6 @@
 </template>
 
 <script setup lang="ts">
-definePageMeta({ layout: 'plain' })
-
 useHead({ title: 'Privacy Policy' })
 </script>
 

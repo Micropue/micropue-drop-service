@@ -101,7 +101,7 @@ DROP has no password login. The only way in is BITS OAuth:
 
 ## Privacy
 
-- The policy lives at `/privacy` (public, plain layout) and is linked from the sign-in page, the account page and the consent dialog.
+- The policy lives at `/privacy` (public) and is linked from the sign-in page, the account page and the consent dialog.
 - Logged-in users must accept it once; the dialog is blocking and cannot be dismissed. Acceptance is stored in `accounts.privacy_accepted_at`.
 - The policy states that publishers own their content, that DROP does not pre-screen or take responsibility for it, and includes the liability disclaimer.
 
@@ -250,7 +250,7 @@ app/
   assets/css/    main.scss (BITS theme tokens, fonts, base styles)
   components/    BrandLogo.vue, TechText.vue, DotField.vue, UserAvatar.vue, CodeEditor.client.vue, FileTypeIcon.vue
   composables/   useAuthUser.ts
-  layouts/       default.vue (header + consent), plain.vue (privacy)
+  layouts/       default.vue (header + consent)
   pages/         index.vue, account.vue, dashboard.vue, new.vue, privacy.vue, sign.vue
 public/          favicon.ico, robots.txt, file-icons/ (Material Icon Theme, MIT)
 server/

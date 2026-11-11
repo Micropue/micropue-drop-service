@@ -71,6 +71,7 @@ import Check from '@primeicons/vue/check'
 const githubUrl = 'https://github.com/Micropue/micropue-drop-service'
 const { data } = useFetch<{ stars: number | null }>('/api/github/star')
 
+const route = useRoute()
 const { user: authUser } = useAuthUser()
 const authLoaded = useState('auth-user-loaded', () => false)
 if (!authLoaded.value) {
@@ -84,7 +85,8 @@ const starLabel = computed(() =>
         ? ''
         : new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(data.value.stars))
 
-const privacyOpen = computed(() => Boolean(authUser.value && !authUser.value.privacyAcceptedAt))
+// 政策页本身不弹同意框，否则会挡住阅读
+const privacyOpen = computed(() => Boolean(authUser.value && !authUser.value.privacyAcceptedAt && route.path !== '/privacy'))
 const accepting = ref(false)
 const consentError = ref('')
 
