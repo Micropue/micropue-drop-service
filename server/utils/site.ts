@@ -89,22 +89,27 @@ function bareHost(value: string) {
     .replace(/\.$/, '')
 }
 
-// 内容域：优先 NUXT_CONTENT_HOST，其次从 NUXT_PUBLIC_CONTENT_URL 推导；绝不能与主站同域
-function contentHostName(event: H3Event) {
+// 内容域：接受 NUXT_CONTENT_HOST、NUXT_PUBLIC_CONTENT_URL 和默认域名中的任意一个；绝不能是主站域名
+function contentHosts(event: H3Event) {
   const config = useRuntimeConfig(event)
   const site = bareHost(String(config.public.siteUrl || ''))
+  const hosts = new Set<string>()
   for (const raw of [config.contentHost, config.public.contentUrl, 'dropcontent.micropue.com.cn']) {
     const host = bareHost(String(raw || ''))
-    if (host && host !== site) return host
+    if (host && host !== site) hosts.add(host)
   }
-  return 'dropcontent.micropue.com.cn'
+  return [...hosts]
 }
 
 // 内容只允许通过 dropcontent 域名访问；drop 主站上的 /{username}/{slug} 直接 404
 export function isContentRequest(event: H3Event) {
-  const expected = contentHostName(event)
-  const host = bareHost(getRequestHost(event) || '')
-  return Boolean(expected) && host === expected
+  const expected = contentHosts(event)
+  const forwarded = String(event.node.req.headers['x-forwarded-host'] || '').split(',')[0]
+  const hosts = new Set([
+    bareHost(getRequestHost(event) || ''),
+    bareHost(forwarded)
+  ])
+  return expected.some(host => hosts.has(host))
 }
 
 // 内容域根地址：只提示这是内容服务，不渲染主站
@@ -113,7 +118,7 @@ export function contentHome(event: H3Event) {
   const label = site.replace(/^https?:\/\//, '')
 
   setHeader(event, 'content-type', 'text/html; charset=utf-8')
-  setHeader(event, 'cache-control', 'public, max-age=3600')
+  setHeader(event, 'cache-control', 'public, max-age=60')
   setHeader(event, 'x-robots-tag', 'noindex')
 
   return pageHtml('Drop content service', `<p>This is Drop's content service. Visit <a href="${escapeHtml(site)}">${escapeHtml(label)}</a> to open the main site.</p>`)
