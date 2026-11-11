@@ -89,19 +89,21 @@ function bareHost(value: string) {
     .replace(/\.$/, '')
 }
 
-// 内容域：优先 NUXT_CONTENT_HOST，其次从 NUXT_PUBLIC_CONTENT_URL 推导，最后回退默认值
+// 内容域：优先 NUXT_CONTENT_HOST，其次从 NUXT_PUBLIC_CONTENT_URL 推导；绝不能与主站同域
 function contentHostName(event: H3Event) {
   const config = useRuntimeConfig(event)
-  const raw = String(config.contentHost || '')
-    || String(config.public.contentUrl || '')
-    || 'dropcontent.micropue.com.cn'
-  return bareHost(raw)
+  const site = bareHost(String(config.public.siteUrl || ''))
+  for (const raw of [config.contentHost, config.public.contentUrl, 'dropcontent.micropue.com.cn']) {
+    const host = bareHost(String(raw || ''))
+    if (host && host !== site) return host
+  }
+  return 'dropcontent.micropue.com.cn'
 }
 
 // 内容只允许通过 dropcontent 域名访问；drop 主站上的 /{username}/{slug} 直接 404
 export function isContentRequest(event: H3Event) {
   const expected = contentHostName(event)
-  const host = bareHost(getRequestHost(event, { xForwardedHost: true }) || '')
+  const host = bareHost(getRequestHost(event) || '')
   return Boolean(expected) && host === expected
 }
 
