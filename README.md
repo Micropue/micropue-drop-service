@@ -123,6 +123,7 @@ The creator at `/new` matches the site navigation width (`max-width: 1300px`): t
 - Visibility: `public` or `password` (scrypt hash; the plain password is never stored).
 - One item is selected at a time, like VS Code. Selecting a folder highlights it but keeps the last file open in the editor.
 - New file/folder is created inline in the tree: inside the selected folder, or beside the selected file.
+- `Upload folder` reads a local folder entirely in the browser, keeps its nested structure, imports `.html` / `.css` / `.js`, skips other files and replaces the current project files. Limits match the backend (20 files, 512 KB each, 1 MB total); nothing is uploaded until you save.
 - Drag files and folders in the explorer to move/reorder them; files cannot contain other files. Paths are rewritten and saved. `Alt+Arrow` keys also reorder.
 - `Save` opens the project settings dialog the first time, then saves directly on later clicks. The settings icon next to Save reopens the dialog at any time.
 - `Share` opens a QR code and the project link.

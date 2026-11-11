@@ -52,12 +52,18 @@
               @click="startCreate('folder')">
               <FolderPlus />
             </button>
+            <button type="button" class="panel-action" title="Upload folder" aria-label="Upload folder"
+              :disabled="uploading" @click="folderInput?.click()">
+              <Upload />
+            </button>
             <button type="button" class="panel-action close-explorer" title="Close explorer"
               aria-label="Close explorer" @click="explorerOpen = false">
               ×
             </button>
           </div>
         </div>
+        <input ref="folderInput" class="folder-input" type="file" webkitdirectory multiple
+          @change="onFolderUpload" />
 
         <div class="tree-scroll">
           <Draggable ref="treeRef" v-model="treeData" :node-key="nodeKey" :indent="10" tree-line :tree-line-offset="8"
@@ -96,6 +102,8 @@
             </template>
           </Draggable>
         </div>
+        <p v-if="uploadError" class="tree-error">{{ uploadError }}</p>
+        <p v-if="uploadNotice" class="tree-notice">{{ uploadNotice }}</p>
         <p v-if="draftError" class="tree-error">{{ draftError }}</p>
       </aside>
 
@@ -216,6 +224,7 @@ import '@he-tree/vue/style/default.css'
 import Dialog from 'primevue/dialog'
 import FilePlus from '@primeicons/vue/file-plus'
 import FolderPlus from '@primeicons/vue/folder-plus'
+import Upload from '@primeicons/vue/upload'
 import FolderOpen from '@primeicons/vue/folder-open'
 import SaveIcon from '@primeicons/vue/save'
 import ShareAlt from '@primeicons/vue/share-alt'
@@ -226,6 +235,7 @@ import Times from '@primeicons/vue/times'
 import SignOut from '@primeicons/vue/sign-out'
 import ArrowLeft from '@primeicons/vue/arrow-left'
 import { onBeforeRouteLeave } from 'vue-router'
+import { parseFolderFiles } from '~/utils/folder-import'
 
 type Visibility = 'public' | 'password'
 type Language = 'html' | 'css' | 'js'
@@ -570,6 +580,10 @@ const shareDialog = ref(false)
 const deleteDialog = ref(false)
 const leaveDialog = ref(false)
 const explorerOpen = ref(false)
+const folderInput = ref<HTMLInputElement | null>(null)
+const uploading = ref(false)
+const uploadError = ref('')
+const uploadNotice = ref('')
 const creatingKind = ref<'file' | 'folder' | null>(null)
 const creatingParent = ref('')
 const draftName = ref('')
@@ -738,6 +752,37 @@ async function commitCreate() {
   selection.value = { kind: 'file', path }
   rebuildTree()
   await revealNode(path, 'file')
+}
+
+// 纯前端解析文件夹：保留目录结构，覆盖当前项目后统一保存
+async function onFolderUpload(event: Event) {
+  const input = event.target as HTMLInputElement
+  const list = input.files ? [...input.files] : []
+  input.value = ''
+  if (!list.length) return
+
+  uploadError.value = ''
+  uploadNotice.value = ''
+  uploading.value = true
+  try {
+    const result = await parseFolderFiles(list)
+    files.value = result.files
+    folders.value = result.folders
+    activeIndex.value = Math.max(0, result.files.findIndex(file => file.name === 'index.html'))
+    const active = result.files[activeIndex.value]
+    selection.value = active ? { kind: 'file', path: active.name } : null
+    rebuildTree()
+    if (active) await revealNode(active.name, 'file')
+
+    const skippedText = result.skipped
+      ? `, skipped ${result.skipped} unsupported file${result.skipped === 1 ? '' : 's'}`
+      : ''
+    uploadNotice.value = `Imported ${result.files.length} file${result.files.length === 1 ? '' : 's'}${skippedText}.`
+  } catch (err) {
+    uploadError.value = err instanceof Error ? err.message : 'Could not read the selected folder.'
+  } finally {
+    uploading.value = false
+  }
 }
 
 function requestDelete(index: number) {
@@ -1179,6 +1224,11 @@ onBeforeRouteLeave(to => {
   color: var(--p-text-muted-color);
   cursor: pointer;
 
+  &:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+
   &:hover {
     background: color-mix(in srgb, var(--p-text-color) 8%, transparent);
     color: var(--p-text-color);
@@ -1240,6 +1290,17 @@ onBeforeRouteLeave(to => {
   margin: 0.35rem 0.6rem;
   color: var(--p-red-500);
   font-size: 0.72rem;
+}
+
+.tree-notice {
+  margin: 0.35rem 0.6rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.folder-input {
+  display: none;
 }
 
 .editor-file-group {

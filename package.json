@@ -8,6 +8,7 @@
     "dev": "nuxt dev --host",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
+    "test:folder-import": "node --experimental-strip-types scripts/folder-import.test.mjs",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
