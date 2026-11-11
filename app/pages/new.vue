@@ -14,20 +14,34 @@
           <ShareAlt aria-hidden="true" />
           <span>Share</span>
         </Button>
-        <Button @click="handleSave">
+        <Button :disabled="loadingProject || loadFailed" @click="handleSave">
           <SaveIcon aria-hidden="true" />
           <span>Save</span>
         </Button>
-        <Button class="settings-button" severity="secondary" rounded aria-label="Project settings"
-          title="Project settings" @click="openSettings">
+        <Button class="settings-button" severity="secondary" rounded :disabled="loadingProject || loadFailed"
+          aria-label="Project settings" title="Project settings" @click="openSettings">
           <Cog aria-hidden="true" />
         </Button>
       </div>
     </header>
 
     <div class="workspace">
-      <div v-if="explorerOpen" class="drawer-backdrop" @click="explorerOpen = false"></div>
-      <aside class="explorer-panel" :class="{ 'is-open': explorerOpen }">
+      <div v-if="loadingProject" class="workspace-loading" role="status" aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span>
+        <span>Loading project…</span>
+      </div>
+      <div v-else-if="loadFailed" class="workspace-error">
+        <p>Could not load this project. It may have been deleted.</p>
+        <Button as-child v-slot="slotProps" severity="secondary">
+          <NuxtLink to="/dashboard" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
+            <ArrowLeft aria-hidden="true" />
+            <span>Back to Dashboard</span>
+          </NuxtLink>
+        </Button>
+      </div>
+      <template v-else>
+        <div v-if="explorerOpen" class="drawer-backdrop" @click="explorerOpen = false"></div>
+        <aside class="explorer-panel" :class="{ 'is-open': explorerOpen }">
         <div class="panel-head">
           <h2>Explorer</h2>
           <div class="panel-actions">
@@ -100,6 +114,7 @@
           :language="languageLabel(activeFile.language)" :height="620" placeholder="Start typing…" />
         <div v-else class="editor-empty">Create a file to start.</div>
       </section>
+      </template>
     </div>
 
     <Dialog v-model:visible="settingsDialog" modal header="Project settings" :style="{ width: 'min(480px, 92vw)' }"
@@ -208,6 +223,7 @@ import Copy from '@primeicons/vue/copy'
 import Trash from '@primeicons/vue/trash'
 import Times from '@primeicons/vue/times'
 import SignOut from '@primeicons/vue/sign-out'
+import ArrowLeft from '@primeicons/vue/arrow-left'
 import { onBeforeRouteLeave } from 'vue-router'
 
 type Visibility = 'public' | 'private' | 'password'
@@ -465,6 +481,8 @@ const savedPath = ref<string>('')
 const saving = ref(false)
 const error = ref('')
 const dirty = ref(false)
+const loadingProject = ref(Boolean(editingSid))
+const loadFailed = ref(false)
 const lastSaved = ref<Date | null>(null)
 
 // /new?edit=<sid>：把已有项目读回编辑器，后续保存走 PUT
@@ -489,7 +507,10 @@ async function loadProject() {
     await nextTick()
     dirty.value = false
   } catch {
+    loadFailed.value = true
     error.value = 'Could not load this project.'
+  } finally {
+    loadingProject.value = false
   }
 }
 
@@ -506,6 +527,8 @@ const visibilityHint = computed(() => {
 })
 
 const statusText = computed(() => {
+  if (loadingProject.value) return 'Loading…'
+  if (loadFailed.value) return 'Load failed'
   if (saving.value) return 'Saving…'
   if (error.value) return 'Save failed'
   if (dirty.value) return 'Unsaved changes'
@@ -513,6 +536,8 @@ const statusText = computed(() => {
 })
 
 const statusTone = computed(() => {
+  if (loadingProject.value) return 'saving'
+  if (loadFailed.value) return 'error'
   if (saving.value) return 'saving'
   if (error.value) return 'error'
   if (dirty.value) return 'dirty'
@@ -744,11 +769,13 @@ function confirmDelete() {
 }
 
 function openSettings() {
+  if (loadingProject.value || loadFailed.value) return
   error.value = ''
   settingsDialog.value = true
 }
 
 function handleSave() {
+  if (loadingProject.value || loadFailed.value) return
   if (!projectId.value) {
     openSettings()
     return
@@ -796,7 +823,7 @@ function messageOf(err: unknown) {
 }
 
 async function save() {
-  if (saving.value) return
+  if (saving.value || loadingProject.value) return
 
   error.value = ''
   const trimmedName = name.value.trim()
@@ -1008,6 +1035,69 @@ onBeforeRouteLeave(to => {
   gap: 1.25rem;
   align-items: stretch;
   margin-top: 1.5rem;
+}
+
+.workspace-loading {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 620px;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 0.75rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.85rem;
+}
+
+.workspace-error {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  min-height: 620px;
+  border: 1px dashed var(--p-content-border-color);
+  border-radius: 0.75rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.9rem;
+
+  p {
+    margin: 0;
+  }
+
+  :deep(.p-button) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  :deep(.p-button svg) {
+    width: 0.9rem;
+    height: 0.9rem;
+  }
+}
+
+.spinner {
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 2px solid var(--p-content-border-color);
+  border-top-color: var(--p-text-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
 }
 
 .field {
