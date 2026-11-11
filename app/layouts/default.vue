@@ -33,13 +33,40 @@
     <main>
         <slot></slot>
     </main>
+
+    <Dialog :visible="privacyOpen" modal header="Privacy Policy" :closable="false" :close-on-escape="false"
+        :dismissable-mask="false" :draggable="false" :style="{ width: 'min(520px, 92vw)' }">
+        <div class="consent">
+            <p>
+                Before using DROP, please review and accept our Privacy Policy. It explains what we collect,
+                that you own and are responsible for the content you publish, and the limits of our liability.
+            </p>
+            <p>
+                <NuxtLink to="/privacy" target="_blank" rel="noopener noreferrer">Read the full Privacy Policy</NuxtLink>
+            </p>
+            <p v-if="consentError" class="consent-error" role="alert">{{ consentError }}</p>
+        </div>
+        <template #footer>
+            <Button text @click="logout">
+                <SignOut aria-hidden="true" />
+                <span>Log out</span>
+            </Button>
+            <Button :loading="accepting" @click="acceptPrivacy">
+                <Check aria-hidden="true" />
+                <span>Agree and continue</span>
+            </Button>
+        </template>
+    </Dialog>
 </template>
 
 <script setup lang="ts">
 import Button from 'primevue/button'
+import Dialog from 'primevue/dialog'
 import Github from '@primeicons/vue/github'
 import ArrowUpRight from '@primeicons/vue/arrow-up-right'
 import SignIn from '@primeicons/vue/sign-in'
+import SignOut from '@primeicons/vue/sign-out'
+import Check from '@primeicons/vue/check'
 
 const githubUrl = 'https://github.com/Micropue/micropue-drop-service'
 const { data } = useFetch<{ stars: number | null }>('/api/github/star')
@@ -56,6 +83,29 @@ const starLabel = computed(() =>
     data.value?.stars == null
         ? ''
         : new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(data.value.stars))
+
+const privacyOpen = computed(() => Boolean(authUser.value && !authUser.value.privacyAcceptedAt))
+const accepting = ref(false)
+const consentError = ref('')
+
+async function acceptPrivacy() {
+    if (accepting.value || !authUser.value) return
+    accepting.value = true
+    consentError.value = ''
+    try {
+        const response = await $fetch<{ acceptedAt: string }>('/api/account/consent', { method: 'POST' })
+        authUser.value = { ...authUser.value, privacyAcceptedAt: response.acceptedAt }
+    } catch {
+        consentError.value = 'Could not record your acceptance. Please try again.'
+    } finally {
+        accepting.value = false
+    }
+}
+
+async function logout() {
+    await $fetch('/api/auth/logout', { method: 'POST' })
+    window.location.href = '/'
+}
 </script>
 
 <style lang="scss" scoped>
@@ -180,5 +230,34 @@ header {
 
 main {
     min-height: calc(100vh - 70px);
+}
+
+.consent {
+    p {
+        margin: 0 0 0.75rem;
+        font-size: 0.875rem;
+        line-height: 1.65;
+        color: var(--p-text-muted-color);
+    }
+
+    a {
+        color: var(--p-text-color);
+        font-size: 0.875rem;
+    }
+}
+
+.consent-error {
+    color: var(--p-red-500);
+}
+
+:deep(.p-dialog .p-button) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+:deep(.p-dialog .p-button svg) {
+    width: 1rem;
+    height: 1rem;
 }
 </style>

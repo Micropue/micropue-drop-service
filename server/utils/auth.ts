@@ -16,6 +16,7 @@ export interface DropUser {
   profile: string
   createdAt: string
   lastLoginAt: string | null
+  privacyAcceptedAt: string | null
 }
 
 export interface BitsProfile {
@@ -36,6 +37,7 @@ interface AccountRow extends RowDataPacket {
   profile: string
   created_at: Date
   last_login_at: Date | null
+  privacy_accepted_at: Date | null
 }
 
 export function getBitsOAuthConfig() {
@@ -111,7 +113,7 @@ export async function getSessionUser(event: H3Event): Promise<DropUser | null> {
   if (!bitsId) return null
 
   const [rows] = await useDb().query<AccountRow[]>(
-    'SELECT `bits_id`, `email`, `username`, `nickname`, `avatar_url`, `profile`, `created_at`, `last_login_at` FROM `accounts` WHERE `bits_id` = ? LIMIT 1',
+    'SELECT `bits_id`, `email`, `username`, `nickname`, `avatar_url`, `profile`, `created_at`, `last_login_at`, `privacy_accepted_at` FROM `accounts` WHERE `bits_id` = ? LIMIT 1',
     [bitsId]
   )
   const row = rows[0]
@@ -125,7 +127,8 @@ export async function getSessionUser(event: H3Event): Promise<DropUser | null> {
     avatarUrl: row.avatar_url,
     profile: row.profile,
     createdAt: row.created_at.toISOString(),
-    lastLoginAt: row.last_login_at ? row.last_login_at.toISOString() : null
+    lastLoginAt: row.last_login_at ? row.last_login_at.toISOString() : null,
+    privacyAcceptedAt: row.privacy_accepted_at ? row.privacy_accepted_at.toISOString() : null
   }
 }
 

@@ -14,6 +14,10 @@
       </a>
     </Button>
     <p class="note">Username and password are managed by BITS. DROP never stores your password.</p>
+    <p class="note">
+      By continuing, you agree to the
+      <NuxtLink to="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</NuxtLink>.
+    </p>
   </div>
 </template>
 

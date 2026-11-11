@@ -99,6 +99,12 @@ DROP has no password login. The only way in is BITS OAuth:
 3. `userinfo` is written to the local `accounts` table, keyed by `bits_id` (`userinfo.sub`).
 4. A 7-day HttpOnly session cookie (`drop_session`, JWT) is issued.
 
+## Privacy
+
+- The policy lives at `/privacy` (public, plain layout) and is linked from the sign-in page, the account page and the consent dialog.
+- Logged-in users must accept it once; the dialog is blocking and cannot be dismissed. Acceptance is stored in `accounts.privacy_accepted_at`.
+- The policy states that publishers own their content, that DROP does not pre-screen or take responsibility for it, and includes the liability disclaimer.
+
 The `accounts` table stores only the BITS projection: email, username, nickname, avatar, profile URL and login times.
 Username, password and profile cannot be changed in DROP; edit them on BITS and the next login syncs them.
 
@@ -244,8 +250,8 @@ app/
   assets/css/    main.scss (BITS theme tokens, fonts, base styles)
   components/    BrandLogo.vue, TechText.vue, DotField.vue, UserAvatar.vue, CodeEditor.client.vue, FileTypeIcon.vue
   composables/   useAuthUser.ts
-  layouts/       default.vue (header)
-  pages/         index.vue, account.vue, dashboard.vue, new.vue, sign.vue
+  layouts/       default.vue (header + consent), plain.vue (privacy)
+  pages/         index.vue, account.vue, dashboard.vue, new.vue, privacy.vue, sign.vue
 public/          favicon.ico, robots.txt, file-icons/ (Material Icon Theme, MIT)
 server/
   api/auth/      bits.get.ts, bits/callback.get.ts, me.get.ts, logout.post.ts

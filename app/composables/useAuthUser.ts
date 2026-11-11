@@ -7,6 +7,7 @@ export interface AuthUser {
   profile: string
   createdAt: string
   lastLoginAt: string | null
+  privacyAcceptedAt: string | null
 }
 
 // 全局登录态：布局初始化（SSR 友好），登录/登出后由页面刷新

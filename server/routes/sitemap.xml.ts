@@ -18,7 +18,8 @@ export default defineEventHandler(async event => {
   const today = new Date().toISOString().slice(0, 10)
 
   const entries: SitemapEntry[] = [
-    { url: `${base}/`, lastmod: today, changefreq: 'weekly', priority: 1 }
+    { url: `${base}/`, lastmod: today, changefreq: 'weekly', priority: 1 },
+    { url: `${base}/privacy`, lastmod: today, changefreq: 'yearly', priority: 0.3 }
   ]
 
   try {

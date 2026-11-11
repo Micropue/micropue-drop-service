@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS \`accounts\` (
   \`created_at\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '首次登录时间',
   \`updated_at\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '资料同步时间',
   \`last_login_at\` DATETIME NULL COMMENT '最近登录时间',
+  \`privacy_accepted_at\` DATETIME NULL COMMENT '隐私政策同意时间',
   PRIMARY KEY (\`bits_id\`),
   KEY \`idx_accounts_username\` (\`username\`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='DROP 本地账户表'
@@ -74,6 +75,15 @@ export async function ensureSchema() {
   await pool.query(ACCOUNTS_TABLE_SQL)
   await pool.query(PROJECTS_TABLE_SQL)
   await pool.query(PROJECT_FILES_TABLE_SQL)
+
+  // 旧账户表补隐私政策同意时间
+  const [privacyColumns] = await pool.query<RowDataPacket[]>(
+    `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accounts' AND COLUMN_NAME = 'privacy_accepted_at'`
+  )
+  if (!privacyColumns.length) {
+    await pool.query('ALTER TABLE `accounts` ADD COLUMN `privacy_accepted_at` DATETIME NULL COMMENT \'隐私政策同意时间\' AFTER `last_login_at`')
+  }
 
   // 旧项目表补 folders / enabled 列
   const [folderColumns] = await pool.query<RowDataPacket[]>(
