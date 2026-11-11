@@ -118,7 +118,7 @@ export function contentHome(event: H3Event) {
   const label = site.replace(/^https?:\/\//, '')
 
   setHeader(event, 'content-type', 'text/html; charset=utf-8')
-  setHeader(event, 'cache-control', 'public, max-age=60')
+  setHeader(event, 'cache-control', 'no-store')
   setHeader(event, 'x-robots-tag', 'noindex')
 
   return pageHtml('Drop content service', `<p>This is Drop's content service. Visit <a href="${escapeHtml(site)}">${escapeHtml(label)}</a> to open the main site.</p>`)
