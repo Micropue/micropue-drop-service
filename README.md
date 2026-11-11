@@ -120,14 +120,14 @@ The creator at `/new` matches the site navigation width (`max-width: 1300px`): t
 - **Max 100 projects per BITS account.**
 - Files can live in folders; empty folders are stored in the project's `folders` JSON column.
 - Everything is stored in MySQL (`projects`, `project_files`). Nothing is written to disk.
-- Visibility: `public`, `private` (owner only) or `password` (scrypt hash; the plain password is never stored).
+- Visibility: `public` or `password` (scrypt hash; the plain password is never stored).
 - One item is selected at a time, like VS Code. Selecting a folder highlights it but keeps the last file open in the editor.
 - New file/folder is created inline in the tree: inside the selected folder, or beside the selected file.
 - Drag files and folders in the explorer to move/reorder them; files cannot contain other files. Paths are rewritten and saved. `Alt+Arrow` keys also reorder.
 - `Save` opens the project settings dialog the first time, then saves directly on later clicks. The settings icon next to Save reopens the dialog at any time.
 - `Share` opens a QR code and the project link.
 - The dashboard lists your projects 20 per page with search (name or URL), sorting (last updated / newest / name), a visibility icon, an on/off switch, `Edit` and `Delete`.
-  - The switch controls whether the site is served at all — it is not visibility. Visibility (`public` / `private` / `password`) is still changed in the editor settings.
+  - The switch controls whether the site is served at all — it is not visibility. Visibility (`public` / `password`) is still changed in the editor settings.
   - `Edit` reopens the project in the creator (`/new?edit=<sid>`); `Delete` asks for confirmation and removes the project with its files.
 - On screens ≤900px the explorer becomes a drawer.
 - The explorer uses [he-tree](https://hetree.phphe.com/) (`@he-tree/vue`) with a custom Vue UI; file/folder icons come from [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme) (MIT).
@@ -141,11 +141,11 @@ Projects are served by Nitro straight from MySQL — nothing is written to disk 
 - The URL without the trailing slash is redirected (308) so relative `assets/...` links keep working.
 - `/` returns `index.html`; any other request is an exact file lookup (`/pages/about.html`, `/assets/style.css`), so traversal paths simply 404.
 - Content types: `.html` → `text/html`, `.css` → `text/css`, `.js` → `text/javascript`. Unknown extensions are not servable.
-- Visibility is enforced on every request: `private` needs the signed-in owner, `password` shows a password form and stores a signed `drop_unlock_*` cookie for 12h. The owner bypasses both.
+- Visibility is enforced on every request: `password` shows a password form and stores a signed `drop_unlock_*` cookie for 12h. The owner bypasses it.
 - The dashboard switch (`enabled`) disables the site entirely: every request returns 404 while off.
 - On the content domain, app pages and `/api/*` are 404; only project files and `/api/unlock/*` are reachable.
 - Password attempts are limited to 10 per 10 minutes per project + IP in Redis.
-- Private and password pages are `no-store` and `X-Robots-Tag: noindex`; `sitemap.xml` lists only public, enabled projects on the content domain.
+- Password pages are `no-store` and `X-Robots-Tag: noindex`; `sitemap.xml` lists only public, enabled projects on the content domain.
 - The dashboard path text links to the live site and is not a link when the project is disabled.
 
 Set the content host in `.env`:
@@ -165,7 +165,7 @@ NUXT_PUBLIC_CONTENT_URL=http://dropcontent.localhost:3678
 AUTH_COOKIE_DOMAIN=
 ```
 
-Then visit `http://dropcontent.localhost:3678/micropue/personal-site/`. With `AUTH_COOKIE_DOMAIN` empty the owner session stays on the main host, so private projects are only viewable on the content domain in production.
+Then visit `http://dropcontent.localhost:3678/micropue/personal-site/`. With `AUTH_COOKIE_DOMAIN` empty the owner session stays on the main host, so owner bypass on password projects only works on the content domain in production.
 
 ### Reverse proxy
 

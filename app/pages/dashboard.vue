@@ -67,7 +67,6 @@
           <span class="visibility-icon" :class="`visibility-icon--${project.visibility}`"
             role="img" :aria-label="visibilityLabel(project.visibility)" :title="visibilityLabel(project.visibility)">
             <Globe v-if="project.visibility === 'public'" aria-hidden="true" />
-            <EyeSlash v-else-if="project.visibility === 'private'" aria-hidden="true" />
             <Lock v-else aria-hidden="true" />
           </span>
 
@@ -131,13 +130,12 @@ import Times from '@primeicons/vue/times'
 import Search from '@primeicons/vue/search'
 import Globe from '@primeicons/vue/globe'
 import Lock from '@primeicons/vue/lock'
-import EyeSlash from '@primeicons/vue/eye-slash'
 
 interface DashboardProject {
   sid: string
   name: string
   slug: string
-  visibility: 'public' | 'private' | 'password'
+  visibility: 'public' | 'password'
   enabled: boolean
   updatedAt: string
   path: string
@@ -199,7 +197,7 @@ const deleteError = ref('')
 const pendingDelete = ref<DashboardProject | null>(null)
 
 const visibilityLabel = (visibility: DashboardProject['visibility']) =>
-  ({ public: 'Public', private: 'Private', password: 'Password protected' })[visibility]
+  ({ public: 'Public', password: 'Password protected' })[visibility]
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value))

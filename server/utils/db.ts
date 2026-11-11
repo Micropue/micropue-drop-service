@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS \`projects\` (
   \`owner_bits_id\` VARCHAR(64) NOT NULL COMMENT '所有者 BITS userinfo.sub',
   \`slug\` VARCHAR(40) NOT NULL COMMENT '项目地址名（用户内唯一）',
   \`name\` VARCHAR(80) NOT NULL COMMENT '项目名称',
-  \`visibility\` ENUM('public','private','password') NOT NULL DEFAULT 'private' COMMENT '公开/仅自己/密码',
+  \`visibility\` ENUM('public','password') NOT NULL DEFAULT 'public' COMMENT '公开/密码',
   \`enabled\` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '站点开关：关闭后不对外服务',
   \`password_hash\` VARCHAR(255) NULL COMMENT '访问密码哈希（visibility=password 时存在）',
   \`folders\` JSON NOT NULL DEFAULT (JSON_ARRAY()) COMMENT '显式文件夹路径列表（文件父目录自动补齐）',
@@ -86,5 +86,16 @@ export async function ensureSchema() {
   }
   if (!columns.has('enabled')) {
     await pool.query("ALTER TABLE `projects` ADD COLUMN `enabled` TINYINT(1) NOT NULL DEFAULT 1 AFTER `visibility`")
+  }
+
+  // 移除 private：历史私有项目转为“需要密码但未设置”，由所有者补密码后继续使用
+  const [visibilityColumns] = await pool.query<RowDataPacket[]>(
+    `SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projects' AND COLUMN_NAME = 'visibility'`
+  )
+  const visibilityType = String(visibilityColumns[0]?.COLUMN_TYPE || '')
+  if (visibilityType.includes("'private'")) {
+    await pool.query("UPDATE `projects` SET `visibility` = 'password', `password_hash` = NULL WHERE `visibility` = 'private'")
+    await pool.query("ALTER TABLE `projects` MODIFY COLUMN `visibility` ENUM('public','password') NOT NULL DEFAULT 'public' COMMENT '公开/密码保护'")
   }
 }

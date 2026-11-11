@@ -12,7 +12,7 @@ const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/
 const FILE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.(html|css|js)$/
 const PATH_SEGMENT_RE = /^[A-Za-z0-9._-]+$/
 
-export type ProjectVisibility = 'public' | 'private' | 'password'
+export type ProjectVisibility = 'public' | 'password'
 export type ProjectLanguage = 'html' | 'css' | 'js'
 
 export interface ProjectFileInput {
@@ -85,7 +85,7 @@ export function parseProjectInput(body: unknown): ProjectInput {
   }
 
   const visibility = raw.visibility
-  if (visibility !== 'public' && visibility !== 'private' && visibility !== 'password') {
+  if (visibility !== 'public' && visibility !== 'password') {
     fail('Choose a valid visibility.')
   }
 

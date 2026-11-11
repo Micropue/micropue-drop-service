@@ -226,7 +226,7 @@ import SignOut from '@primeicons/vue/sign-out'
 import ArrowLeft from '@primeicons/vue/arrow-left'
 import { onBeforeRouteLeave } from 'vue-router'
 
-type Visibility = 'public' | 'private' | 'password'
+type Visibility = 'public' | 'password'
 type Language = 'html' | 'css' | 'js'
 
 interface DraftFile {
@@ -277,7 +277,7 @@ const slugPattern = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/
 const name = ref('')
 const slug = ref('')
 const slugTouched = ref(false)
-const visibility = ref<Visibility>('private')
+const visibility = ref<Visibility>('public')
 const password = ref('')
 
 const files = ref<DraftFile[]>([
@@ -516,13 +516,11 @@ async function loadProject() {
 
 const visibilityOptions = [
   { label: 'Public', value: 'public' },
-  { label: 'Private — only me', value: 'private' },
   { label: 'Password protected', value: 'password' }
 ]
 
 const visibilityHint = computed(() => {
   if (visibility.value === 'public') return 'Anyone with the link can open this project.'
-  if (visibility.value === 'private') return 'Only your signed-in BITS account can open this project.'
   return 'Visitors need the password to open this project.'
 })
 
@@ -590,7 +588,6 @@ const draftFileType = computed<Language | 'file'>(() => {
 const shareUrl = computed(() => `${contentUrl.value}${savedPath.value}`)
 const shareHint = computed(() => {
   if (visibility.value === 'public') return 'Anyone with the link can open this project.'
-  if (visibility.value === 'private') return 'Only your signed-in BITS account can open this project.'
   return 'Visitors need the project password to open this project.'
 })
 

@@ -162,7 +162,7 @@ try {
   let index = 0
   for (const project of projects) {
     const { files, folders } = withFolders(project, index)
-    const visibility = index % 9 === 4 ? 'private' : index % 11 === 6 ? 'password' : 'public'
+    const visibility = index % 5 === 3 ? 'password' : 'public'
     const enabled = index % 7 === 3 ? 0 : 1
     const sid = randomUUID()
 

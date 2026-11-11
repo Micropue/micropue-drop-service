@@ -192,16 +192,16 @@ export async function serveProject(event: H3Event, username: string, slug: strin
   const user = await getSessionUser(event)
   const isOwner = Boolean(user && user.bitsId === project.owner_bits_id)
 
-  if (project.visibility === 'private' && !isOwner) {
-    return notFound(event, 'This project is private or does not exist.')
-  }
+  if (project.visibility === 'password' && !isOwner) {
+    if (!project.password_hash) return notFound(event, 'This project is not available.')
 
-  if (project.visibility === 'password' && !isOwner && !(await hasUnlock(event, project.sid))) {
-    setResponseStatus(event, 401)
-    setHeader(event, 'content-type', 'text/html; charset=utf-8')
-    setHeader(event, 'cache-control', 'no-store')
-    setHeader(event, 'x-robots-tag', 'noindex')
-    return passwordPage(project, url.pathname + url.search, url.searchParams.get('error') === '1')
+    if (!(await hasUnlock(event, project.sid))) {
+      setResponseStatus(event, 401)
+      setHeader(event, 'content-type', 'text/html; charset=utf-8')
+      setHeader(event, 'cache-control', 'no-store')
+      setHeader(event, 'x-robots-tag', 'noindex')
+      return passwordPage(project, url.pathname + url.search, url.searchParams.get('error') === '1')
+    }
   }
 
   // 相对路径（assets/...）只有在结尾带斜杠时才指向项目目录
