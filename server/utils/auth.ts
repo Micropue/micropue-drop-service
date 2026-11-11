@@ -97,6 +97,20 @@ export async function createSession(event: H3Event, bitsId: string) {
 
 export function clearSession(event: H3Event) {
   deleteCookie(event, SESSION_COOKIE, { path: '/' })
+
+  // 兼容旧版本：会话 Cookie 曾经写在父域（如 .micropue.com.cn），只清 host-only 清不掉
+  const domains = new Set<string>()
+  const configured = (process.env.AUTH_COOKIE_DOMAIN || '').trim()
+  if (configured) domains.add(configured)
+
+  const host = (getRequestHost(event) || '').split(':')[0].toLowerCase()
+  const labels = host.split('.')
+  const isIp = /^\d+(?:\.\d+){3}$/.test(host)
+  if (!isIp && labels.length >= 3) domains.add(`.${labels.slice(1).join('.')}`)
+
+  for (const domain of domains) {
+    deleteCookie(event, SESSION_COOKIE, { path: '/', domain })
+  }
 }
 
 export async function getSessionUser(event: H3Event): Promise<DropUser | null> {

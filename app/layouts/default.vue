@@ -105,8 +105,11 @@ async function acceptPrivacy() {
 }
 
 async function logout() {
-    await $fetch('/api/auth/logout', { method: 'POST' })
-    window.location.href = '/'
+    try {
+        await $fetch('/api/auth/logout', { method: 'POST' })
+    } finally {
+        window.location.href = '/'
+    }
 }
 </script>
 

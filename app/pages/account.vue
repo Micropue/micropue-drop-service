@@ -69,8 +69,11 @@ const formatDate = (value: string | null) =>
   value ? new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date(value)) : '—'
 
 async function logout() {
-  await $fetch('/api/auth/logout', { method: 'POST' })
-  window.location.href = '/'
+  try {
+    await $fetch('/api/auth/logout', { method: 'POST' })
+  } finally {
+    window.location.href = '/'
+  }
 }
 </script>
 
