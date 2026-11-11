@@ -55,6 +55,7 @@ input { width: 100%; padding: .6rem .7rem; border: 1px solid #d4d4d8; border-rad
 button { width: 100%; margin-top: .75rem; padding: .6rem .9rem; border: 0; border-radius: 6px; background: #18181b; color: #fff; font: inherit; cursor: pointer; }
 button:hover { background: #27272a; }
 .error { color: #dc2626; }
+a { color: inherit; }
 .back { display: inline-block; margin-top: 1rem; font-size: .82rem; color: #71717a; text-decoration: none; }
 .back:hover { color: inherit; }
 @media (prefers-color-scheme: dark) {
@@ -82,14 +83,30 @@ function notFound(event: H3Event, message = 'This page does not exist.') {
 export { notFound as contentNotFound }
 
 function bareHost(value: string) {
-  return value.toLowerCase().replace(/:\d+$/, '').replace(/\.$/, '')
+  return value.trim().toLowerCase()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
+    .split('/')[0]
+    .replace(/:\d+$/, '')
+    .replace(/\.$/, '')
 }
 
 // 内容只允许通过 dropcontent 域名访问；drop 主站上的 /{username}/{slug} 直接 404
 export function isContentRequest(event: H3Event) {
   const expected = bareHost(String(useRuntimeConfig(event).contentHost || ''))
-  const host = bareHost(getRequestHost(event) || '')
+  const host = bareHost(getRequestHost(event, { xForwardedHost: true }) || '')
   return Boolean(expected) && host === expected
+}
+
+// 内容域根地址：只提示这是内容服务，不渲染主站
+export function contentHome(event: H3Event) {
+  const site = String(useRuntimeConfig(event).public.siteUrl || 'https://drop.micropue.com.cn').replace(/\/+$/, '')
+  const label = site.replace(/^https?:\/\//, '')
+
+  setHeader(event, 'content-type', 'text/html; charset=utf-8')
+  setHeader(event, 'cache-control', 'public, max-age=3600')
+  setHeader(event, 'x-robots-tag', 'noindex')
+
+  return pageHtml('Drop content service', `<p>This is Drop's content service. Visit <a href="${escapeHtml(site)}">${escapeHtml(label)}</a> to open the main site.</p>`)
 }
 
 function normalizePath(raw: string) {

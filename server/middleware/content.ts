@@ -1,4 +1,4 @@
-import { contentNotFound, isContentRequest, serveProject } from '../utils/site'
+import { contentHome, contentNotFound, isContentRequest, serveProject } from '../utils/site'
 
 // 内容域（dropcontent.*）只提供项目文件，主站的所有页面和 API 都不在这里出现
 export default defineEventHandler(async event => {
@@ -15,6 +15,7 @@ export default defineEventHandler(async event => {
       return ''
     }
   })
+  if (segments.length === 0) return contentHome(event)
   if (segments.length < 2 || segments.some(segment => !segment)) return contentNotFound(event)
 
   const [username, slug, ...rest] = segments

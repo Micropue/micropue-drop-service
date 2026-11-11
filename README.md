@@ -137,6 +137,7 @@ The creator at `/new` matches the site navigation width (`max-width: 1300px`): t
 Projects are served by Nitro straight from MySQL — nothing is written to disk — and only on the content domain.
 
 - URL: `https://dropcontent.micropue.com.cn/{username}/{slug}/`. The same path on `drop.micropue.com.cn` returns 404, so user JavaScript never runs on the app origin.
+- The content root (`https://dropcontent.micropue.com.cn/`) is a blank page that only points back to the main site; app pages and APIs are never served there.
 - The URL without the trailing slash is redirected (308) so relative `assets/...` links keep working.
 - `/` returns `index.html`; any other request is an exact file lookup (`/pages/about.html`, `/assets/style.css`), so traversal paths simply 404.
 - Content types: `.html` → `text/html`, `.css` → `text/css`, `.js` → `text/javascript`. Unknown extensions are not servable.
