@@ -2,7 +2,7 @@
   <div class="creator">
     <header class="creator-head">
       <div>
-        <h1>{{ editingSid ? 'Edit Project' : 'Create Project' }}</h1>
+        <h1 class="project-path" :title="projectPathLabel">{{ projectPathLabel }}</h1>
       </div>
       <div class="save-area">
         <span class="status" :class="`status--${statusTone}`" aria-live="polite">
@@ -42,7 +42,7 @@
         <div v-if="explorerOpen" class="drawer-backdrop" @click="explorerOpen = false"></div>
         <aside class="explorer-panel" :class="{ 'is-open': explorerOpen }">
         <div class="panel-head">
-          <h2 :title="projectTitle">{{ projectTitle }}</h2>
+          <h2 title="File Explorer">File Explorer</h2>
           <div class="panel-actions">
             <button type="button" class="panel-action" title="New file" aria-label="New file" @click="startCreate('file')">
               <FilePlus />
@@ -55,11 +55,11 @@
               :disabled="uploading" @click="folderInput?.click()">
               <Upload />
             </button>
-            <button type="button" class="panel-action" title="Delete selected" aria-label="Delete selected"
+            <button type="button" class="panel-action" title="Delete" aria-label="Delete"
               :disabled="!canDelete" @click="openDelete">
               <Trash />
             </button>
-            <button type="button" class="panel-action" title="Rename file" aria-label="Rename file"
+            <button type="button" class="panel-action" title="Rename" aria-label="Rename"
               :disabled="!canRename" @click="startRename">
               <Pencil />
             </button>
@@ -87,7 +87,7 @@
                   @blur="commitCreateOnBlur" />
               </div>
               <div v-else class="tree-row" :title="node.data.path" :style="rowStyle(stat)"
-                :class="{ 'is-selected': isSelected(node.data) }" @pointerdown="onRowPointerDown">
+                :class="{ 'is-selected': isSelected(node.data) }">
                 <button v-if="stat.children.length" type="button" class="tree-toggle"
                   :aria-label="stat.open ? 'Collapse' : 'Expand'" @click.stop="stat.open = !stat.open">
                   <svg class="chevron" :class="{ open: stat.open }" width="12" height="12" viewBox="0 0 16 16"
@@ -298,8 +298,8 @@ const MAX_FOLDERS = 50
 const MAX_TOTAL_BYTES = 1024 * 1024
 
 const name = ref('')
-const projectTitle = computed(() => name.value.trim() || 'Untitled')
 const slug = ref('')
+const projectPathLabel = computed(() => `${username.value || 'user'}/${slug.value || 'project'}`)
 const slugTouched = ref(false)
 const visibility = ref<Visibility>('public')
 const password = ref('')
@@ -378,17 +378,11 @@ const selectedItems = computed(() =>
 
 const renameTarget = computed(() => {
   if (selectedItems.value.length !== 1) return null
-  const item = selectedItems.value[0]
-  return item.kind === 'file' ? item : null
+  return selectedItems.value[0]
 })
 
 const canDelete = computed(() => selectedItems.value.length > 0)
 const canRename = computed(() => Boolean(renameTarget.value))
-
-let additiveSelect = false
-function onRowPointerDown(event: MouseEvent) {
-  additiveSelect = event.metaKey || event.ctrlKey
-}
 
 const treeRef = ref<{ openNodeAndParents: (node: ExplorerNode) => void } | null>(null)
 const nodeKey = (stat: { data?: ExplorerNode }) => stat.data?.key || stat.data?.path
@@ -484,36 +478,18 @@ function onHeClick(stat: { data: ExplorerNode; open?: boolean }) {
   const data = stat.data?.data
   if (!data || data.kind === 'draft') return
 
-  const additive = additiveSelect
-  additiveSelect = false
   const clicked: TreeSelection = { kind: data.kind, path: data.path }
-  const key = selectionKey(clicked)
-
-  if (additive) {
-    const next = new Set(selectedKeys.value)
-    if (next.has(key)) next.delete(key)
-    else next.add(key)
-    selectedKeys.value = next
-
-    if (next.has(key)) {
-      selection.value = clicked
-    } else if (selection.value && selectionKey(selection.value) === key) {
-      const last = [...next].pop()
-      selection.value = last ? parseSelectionKey(last) : null
-    }
-  } else {
-    selectedKeys.value = new Set([key])
-    selection.value = clicked
-  }
+  selectedKeys.value = new Set([selectionKey(clicked)])
+  selection.value = clicked
 
   if (data.kind === 'folder') {
-    if (!additive && stat.open !== undefined) stat.open = !stat.open
+    if (stat.open !== undefined) stat.open = !stat.open
     return
   }
 
   if (data.index === undefined) return
   activeIndex.value = data.index
-  if (!additive && typeof window !== 'undefined' && window.innerWidth <= 900) explorerOpen.value = false
+  if (typeof window !== 'undefined' && window.innerWidth <= 900) explorerOpen.value = false
 }
 
 // 拖拽 / Alt+方向键移动后，把 he-tree 的树结构同步回文件/文件夹数组；文件内容沿用原对象
@@ -1014,9 +990,10 @@ async function commitRename() {
   if (!renamingPath.value) return
   const oldPath = renamingPath.value
   const file = files.value.find(item => item.name === oldPath)
+  const isFolder = !file && folders.value.includes(oldPath)
   renamingPath.value = ''
 
-  if (!file) {
+  if (!file && !isFolder) {
     renameValue.value = ''
     return
   }
@@ -1031,29 +1008,81 @@ async function commitRename() {
     renameValue.value = ''
     return
   }
-  if (!FILE_NAME_RE.test(value)) {
-    renameError.value = 'File name must end with .html, .css or .js.'
+  renameError.value = ''
+
+  if (file) {
+    if (!FILE_NAME_RE.test(value)) {
+      renameError.value = 'File name must end with .html, .css or .js.'
+      renameValue.value = ''
+      return
+    }
+    if (newPath.length > 120) {
+      renameError.value = 'File path is too long.'
+      renameValue.value = ''
+      return
+    }
+    if (files.value.some(item => item !== file && item.name.toLowerCase() === newPath.toLowerCase())) {
+      renameError.value = 'A file with that name already exists.'
+      renameValue.value = ''
+      return
+    }
+
+    file.name = newPath
+    selection.value = { kind: 'file', path: newPath }
+    selectedKeys.value = new Set([fileKey(newPath)])
+    renameValue.value = ''
+    rebuildTree()
+    await revealNode(newPath, 'file')
+    return
+  }
+
+  if (!FOLDER_NAME_RE.test(value)) {
+    renameError.value = 'Use letters (including Chinese), numbers, dots, underscores or hyphens.'
     renameValue.value = ''
     return
   }
-  if (newPath.length > 120) {
-    renameError.value = 'File path is too long.'
+  if (newPath.length > 100) {
+    renameError.value = 'Folder path is too long.'
     renameValue.value = ''
     return
   }
-  if (files.value.some(item => item !== file && item.name.toLowerCase() === newPath.toLowerCase())) {
+
+  const movingFolders = folders.value.filter(folder => folder === oldPath || folder.startsWith(`${oldPath}/`))
+  const movingFiles = files.value.filter(item => item.name.startsWith(`${oldPath}/`))
+  const renamePath = (path: string) => path === oldPath ? newPath : `${newPath}${path.slice(oldPath.length)}`
+  const renamedFolders = movingFolders.map(renamePath)
+  const renamedFiles = movingFiles.map(item => renamePath(item.name))
+
+  if (renamedFolders.some(folder => folder.length > 100)
+    || renamedFiles.some(path => path.length > 120)) {
+    renameError.value = 'The renamed folder path is too long.'
+    renameValue.value = ''
+    return
+  }
+
+  const remainingFolders = folders.value.filter(folder => !movingFolders.includes(folder))
+  if (renamedFolders.some(folder => remainingFolders.some(other => other.toLowerCase() === folder.toLowerCase()))) {
+    renameError.value = 'A folder with that name already exists.'
+    renameValue.value = ''
+    return
+  }
+  const remainingFileNames = new Set(files.value
+    .filter(item => !movingFiles.includes(item))
+    .map(item => item.name.toLowerCase()))
+  if (renamedFiles.some(path => remainingFileNames.has(path.toLowerCase()))) {
     renameError.value = 'A file with that name already exists.'
     renameValue.value = ''
     return
   }
 
-  file.name = newPath
-  selection.value = { kind: 'file', path: newPath }
-  selectedKeys.value = new Set([fileKey(newPath)])
+  folders.value = folders.value.map(folder => movingFolders.includes(folder) ? renamePath(folder) : folder)
+  movingFiles.forEach(item => { item.name = renamePath(item.name) })
+
+  selection.value = { kind: 'folder', path: newPath }
+  selectedKeys.value = new Set([folderKey(newPath)])
   renameValue.value = ''
-  renameError.value = ''
   rebuildTree()
-  await revealNode(newPath, 'file')
+  await revealNode(newPath, 'folder')
 }
 
 function openSettings() {
@@ -1232,6 +1261,17 @@ onBeforeRouteLeave(to => {
   h1 {
     margin: 0;
     font-size: 2rem;
+  }
+
+  .project-path {
+    max-width: min(100%, 720px);
+    overflow: hidden;
+    font-family: var(--font-code);
+    font-size: 1.4rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
@@ -1433,8 +1473,10 @@ onBeforeRouteLeave(to => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  box-sizing: border-box;
+  height: 42px;
   margin-bottom: 0;
-  padding: 0.55rem 0.6rem 0.45rem;
+  padding: 0 0.6rem;
   border-bottom: 1px solid var(--p-content-border-color);
 
   h2 {
@@ -1686,7 +1728,9 @@ onBeforeRouteLeave(to => {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.7rem 0.9rem;
+  box-sizing: border-box;
+  height: 42px;
+  padding: 0 0.9rem;
   border-bottom: 1px solid var(--p-content-border-color);
   font-family: var(--font-code);
   font-size: 0.75rem;

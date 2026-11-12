@@ -132,7 +132,7 @@ The creator at `/new` matches the site navigation width (`max-width: 1300px`): t
 - `Upload folder` reads a local folder entirely in the browser and imports it into the currently selected folder (root when nothing is selected), keeping its nested structure. It imports `.html` / `.css` / `.js`, skips other files, overwrites files with the same path and keeps the rest. Limits match the backend (20 files, 512 KB each, 1 MB total); nothing is uploaded until you save.
 - Drag files and folders in the explorer to move/reorder them; files cannot contain other files. Paths are rewritten and saved. `Alt+Arrow` keys also reorder.
 - Click a folder row to expand or collapse it. Click empty space to deselect and target the project root.
-- Cmd/Ctrl-click multi-selects files and folders; the toolbar delete removes the whole selection (folders recursively). The rename button next to it renames the selected file inline.
+- The toolbar delete removes the selected file or folder (folders recursively); the rename button next to it renames the selected file or folder inline. Selection is single-item again; multi-select was removed.
 - `Save` opens the project settings dialog the first time, then saves directly on later clicks. The settings icon next to Save reopens the dialog at any time.
 - `Share` opens a QR code and the project link.
 - The dashboard lists your projects 20 per page with search (name or URL), sorting (last updated / newest / name), a visibility icon, an on/off switch, `Edit` and `Delete`.
