@@ -9,8 +9,8 @@ const MAX_FOLDERS = 50
 const MAX_FILE_BYTES = 512 * 1024
 const MAX_TOTAL_BYTES = 1024 * 1024
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/
-const FILE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.(html|css|js)$/
-const PATH_SEGMENT_RE = /^[A-Za-z0-9._-]+$/
+const FILE_RE = /^[\p{L}\p{N}][\p{L}\p{N}._-]{0,79}\.(html|css|js)$/u
+const PATH_SEGMENT_RE = /^[\p{L}\p{N}._-]+$/u
 
 export type ProjectVisibility = 'public' | 'password'
 export type ProjectLanguage = 'html' | 'css' | 'js'

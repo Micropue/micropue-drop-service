@@ -2,7 +2,6 @@
   <div class="creator">
     <header class="creator-head">
       <div>
-        <p class="eyebrow">MICROPUE DROP</p>
         <h1>{{ editingSid ? 'Edit Project' : 'Create Project' }}</h1>
       </div>
       <div class="save-area">
@@ -43,7 +42,7 @@
         <div v-if="explorerOpen" class="drawer-backdrop" @click="explorerOpen = false"></div>
         <aside class="explorer-panel" :class="{ 'is-open': explorerOpen }">
         <div class="panel-head">
-          <h2>Explorer</h2>
+          <h2 :title="projectTitle">{{ projectTitle }}</h2>
           <div class="panel-actions">
             <button type="button" class="panel-action" title="New file" aria-label="New file" @click="startCreate('file')">
               <FilePlus />
@@ -56,6 +55,14 @@
               :disabled="uploading" @click="folderInput?.click()">
               <Upload />
             </button>
+            <button type="button" class="panel-action" title="Delete selected" aria-label="Delete selected"
+              :disabled="!canDelete" @click="openDelete">
+              <Trash />
+            </button>
+            <button type="button" class="panel-action" title="Rename file" aria-label="Rename file"
+              :disabled="!canRename" @click="startRename">
+              <Pencil />
+            </button>
             <button type="button" class="panel-action close-explorer" title="Close explorer"
               aria-label="Close explorer" @click="explorerOpen = false">
               ×
@@ -65,7 +72,7 @@
         <input ref="folderInput" class="folder-input" type="file" webkitdirectory multiple
           @change="onFolderUpload" />
 
-        <div class="tree-scroll">
+        <div class="tree-scroll" @click="onTreeBackgroundClick">
           <Draggable ref="treeRef" v-model="treeData" :node-key="nodeKey" :indent="10" tree-line :tree-line-offset="8"
             trigger-class="tree-row" resolve-start-move-point="mouse" :disable-drag="!!creatingKind"
             :each-droppable="eachDroppable" class="he-tree" aria-label="Project files" @click:node="onHeClick"
@@ -76,13 +83,11 @@
                 <FileTypeIcon :type="creatingKind === 'folder' ? 'folder' : draftFileType" />
                 <input ref="draftInput" v-model="draftName" class="tree-input"
                   :placeholder="creatingKind === 'folder' ? 'folder-name' : 'filename.html'" autocomplete="off"
-                  spellcheck="false" @keydown.enter.prevent="commitCreate" @keydown.esc.prevent="cancelCreate"
-                  @blur="cancelCreate" />
+                  spellcheck="false" @keydown.enter.prevent.stop="commitCreate" @keydown.esc.prevent.stop="cancelCreate"
+                  @blur="commitCreateOnBlur" />
               </div>
-              <div v-else class="tree-row" :title="node.data.path" :style="rowStyle(stat)" :class="{
-                'is-selected': (node.data.kind === 'folder' || node.data.kind === 'file')
-                  && selection?.kind === node.data.kind && selection?.path === node.data.path
-              }">
+              <div v-else class="tree-row" :title="node.data.path" :style="rowStyle(stat)"
+                :class="{ 'is-selected': isSelected(node.data) }" @pointerdown="onRowPointerDown">
                 <button v-if="stat.children.length" type="button" class="tree-toggle"
                   :aria-label="stat.open ? 'Collapse' : 'Expand'" @click.stop="stat.open = !stat.open">
                   <svg class="chevron" :class="{ open: stat.open }" width="12" height="12" viewBox="0 0 16 16"
@@ -94,17 +99,15 @@
                 <span v-else class="tree-toggle-spacer"></span>
                 <FileTypeIcon
                   :type="node.data.kind === 'folder' ? (stat.open && stat.children.length ? 'folder-open' : 'folder') : node.data.language" />
-                <span class="tree-label">{{ node.label }}</span>
-                <button v-if="node.data.kind === 'file'" type="button" class="file-remove"
-                  :aria-label="`Delete ${node.data.path}`"
-                  @click.stop="node.data.index !== undefined && requestDelete(node.data.index)">×</button>
+                <input v-if="renamingPath === node.data.path" ref="renameInput" v-model="renameValue"
+                  class="tree-input" autocomplete="off" spellcheck="false" @click.stop
+                  @keydown.enter.prevent.stop="commitRename" @keydown.esc.prevent.stop="cancelRename" @blur="commitRename" />
+                <span v-else class="tree-label">{{ node.label }}</span>
               </div>
             </template>
           </Draggable>
         </div>
-        <p v-if="uploadError" class="tree-error">{{ uploadError }}</p>
         <p v-if="uploadNotice" class="tree-notice">{{ uploadNotice }}</p>
-        <p v-if="draftError" class="tree-error">{{ draftError }}</p>
       </aside>
 
       <section class="editor-panel">
@@ -182,16 +185,15 @@
       </div>
     </Dialog>
 
-    <Dialog v-model:visible="deleteDialog" modal header="Delete file" :style="{ width: 'min(380px, 92vw)' }"
+    <Dialog v-model:visible="deleteDialog" modal header="Delete" :style="{ width: 'min(400px, 92vw)' }"
       :draggable="false">
-      <p v-if="deleteError" class="dialog-text">{{ deleteError }}</p>
-      <p v-else class="dialog-text">Delete <strong>{{ deleteName }}</strong>? This cannot be undone.</p>
+      <p class="dialog-text">{{ deleteSummary }}</p>
       <template #footer>
         <Button text @click="deleteDialog = false">
           <Times aria-hidden="true" />
           <span>Cancel</span>
         </Button>
-        <Button v-if="!deleteError" severity="danger" @click="confirmDelete">
+        <Button severity="danger" @click="confirmDelete">
           <Trash aria-hidden="true" />
           <span>Delete</span>
         </Button>
@@ -212,6 +214,8 @@
         </Button>
       </template>
     </Dialog>
+
+    <Toast position="bottom-right" />
   </div>
 </template>
 
@@ -222,6 +226,8 @@ import Select from 'primevue/select'
 import { Draggable } from '@he-tree/vue'
 import '@he-tree/vue/style/default.css'
 import Dialog from 'primevue/dialog'
+import Toast from 'primevue/toast'
+import { useToast } from 'primevue/usetoast'
 import FilePlus from '@primeicons/vue/file-plus'
 import FolderPlus from '@primeicons/vue/folder-plus'
 import Upload from '@primeicons/vue/upload'
@@ -231,6 +237,7 @@ import ShareAlt from '@primeicons/vue/share-alt'
 import Cog from '@primeicons/vue/cog'
 import Copy from '@primeicons/vue/copy'
 import Trash from '@primeicons/vue/trash'
+import Pencil from '@primeicons/vue/pencil'
 import Times from '@primeicons/vue/times'
 import SignOut from '@primeicons/vue/sign-out'
 import ArrowLeft from '@primeicons/vue/arrow-left'
@@ -284,8 +291,14 @@ const siteHost = computed(() =>
   contentUrl.value.replace(/^https?:\/\//, '').replace(/\/+$/, ''))
 
 const slugPattern = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/
+const FILE_NAME_RE = /^[\p{L}\p{N}][\p{L}\p{N}._-]{0,79}\.(html|css|js)$/u
+const FOLDER_NAME_RE = /^[\p{L}\p{N}._-]+$/u
+const MAX_FILES = 20
+const MAX_FOLDERS = 50
+const MAX_TOTAL_BYTES = 1024 * 1024
 
 const name = ref('')
+const projectTitle = computed(() => name.value.trim() || 'Untitled')
 const slug = ref('')
 const slugTouched = ref(false)
 const visibility = ref<Visibility>('public')
@@ -317,9 +330,15 @@ const activeIndex = ref(0)
 const activeFile = computed(() => files.value[activeIndex.value] ?? null)
 
 const folders = ref<string[]>([])
+const folderKey = (path: string) => `folder:${path}`
+const fileKey = (path: string) => `file:${path}`
+
 const selection = ref<TreeSelection | null>(
   files.value[0] ? { kind: 'file', path: files.value[0].name } : null
 )
+const selectedKeys = ref(new Set<string>(
+  files.value[0] ? [fileKey(files.value[0].name)] : []
+))
 
 const creationParent = computed(() => {
   const selected = selection.value
@@ -330,8 +349,46 @@ const creationParent = computed(() => {
   return parts.join('/')
 })
 
-const folderKey = (path: string) => `folder:${path}`
-const fileKey = (path: string) => `file:${path}`
+const selectionKey = (value: TreeSelection) =>
+  value.kind === 'folder' ? folderKey(value.path) : fileKey(value.path)
+
+function parseSelectionKey(key: string): TreeSelection | null {
+  const separator = key.indexOf(':')
+  if (separator < 0) return null
+  const kind = key.slice(0, separator)
+  const path = key.slice(separator + 1)
+  if (!path || (kind !== 'file' && kind !== 'folder')) return null
+  return { kind, path }
+}
+
+function isSelected(data: ExplorerNode['data']) {
+  if (data.kind === 'draft') return false
+  return selectedKeys.value.has(data.kind === 'folder' ? folderKey(data.path) : fileKey(data.path))
+}
+
+// 点击资源管理器空白处取消选择，等同于回到根目录
+function onTreeBackgroundClick(event: MouseEvent) {
+  if ((event.target as HTMLElement).closest('.tree-row')) return
+  selection.value = null
+  selectedKeys.value = new Set()
+}
+
+const selectedItems = computed(() =>
+  [...selectedKeys.value].map(parseSelectionKey).filter((item): item is TreeSelection => Boolean(item)))
+
+const renameTarget = computed(() => {
+  if (selectedItems.value.length !== 1) return null
+  const item = selectedItems.value[0]
+  return item.kind === 'file' ? item : null
+})
+
+const canDelete = computed(() => selectedItems.value.length > 0)
+const canRename = computed(() => Boolean(renameTarget.value))
+
+let additiveSelect = false
+function onRowPointerDown(event: MouseEvent) {
+  additiveSelect = event.metaKey || event.ctrlKey
+}
 
 const treeRef = ref<{ openNodeAndParents: (node: ExplorerNode) => void } | null>(null)
 const nodeKey = (stat: { data?: ExplorerNode }) => stat.data?.key || stat.data?.path
@@ -423,20 +480,40 @@ async function revealNode(path: string, kind: 'folder' | 'file') {
   if (node) treeRef.value?.openNodeAndParents(node)
 }
 
-function onHeClick(stat: { data: ExplorerNode }) {
-  onNodeSelect(stat.data)
-}
+function onHeClick(stat: { data: ExplorerNode; open?: boolean }) {
+  const data = stat.data?.data
+  if (!data || data.kind === 'draft') return
 
-function onNodeSelect(node: ExplorerNode) {
-  if (node.data.kind === 'draft') return
-  if (node.data.kind === 'folder') {
-    selection.value = { kind: 'folder', path: node.data.path }
+  const additive = additiveSelect
+  additiveSelect = false
+  const clicked: TreeSelection = { kind: data.kind, path: data.path }
+  const key = selectionKey(clicked)
+
+  if (additive) {
+    const next = new Set(selectedKeys.value)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    selectedKeys.value = next
+
+    if (next.has(key)) {
+      selection.value = clicked
+    } else if (selection.value && selectionKey(selection.value) === key) {
+      const last = [...next].pop()
+      selection.value = last ? parseSelectionKey(last) : null
+    }
+  } else {
+    selectedKeys.value = new Set([key])
+    selection.value = clicked
+  }
+
+  if (data.kind === 'folder') {
+    if (!additive && stat.open !== undefined) stat.open = !stat.open
     return
   }
-  if (node.data.index === undefined) return
-  activeIndex.value = node.data.index
-  selection.value = { kind: 'file', path: node.data.path }
-  if (typeof window !== 'undefined' && window.innerWidth <= 900) explorerOpen.value = false
+
+  if (data.index === undefined) return
+  activeIndex.value = data.index
+  if (!additive && typeof window !== 'undefined' && window.innerWidth <= 900) explorerOpen.value = false
 }
 
 // 拖拽 / Alt+方向键移动后，把 he-tree 的树结构同步回文件/文件夹数组；文件内容沿用原对象
@@ -447,16 +524,19 @@ function syncFromTree() {
   let selectedAfter = selectedBefore
   const nextFiles: DraftFile[] = []
   const nextFolders = new Set<string>()
-
+  const nextSelected = new Set<string>()
   const walk = (nodes: ExplorerNode[], parentPath: string) => {
     for (const node of nodes) {
       if (node.data.kind === 'draft') continue
+      const oldPath = node.data.path
+      const oldKey = node.data.kind === 'folder' ? folderKey(oldPath) : fileKey(oldPath)
       const path = parentPath ? `${parentPath}/${node.label}` : node.label
       if (node.data.kind === 'folder') {
         nextFolders.add(path)
-        if (selectedBefore?.kind === 'folder' && node.data.path === selectedBefore.path) {
+        if (selectedBefore?.kind === 'folder' && oldPath === selectedBefore.path) {
           selectedAfter = { kind: 'folder', path }
         }
+        if (selectedKeys.value.has(oldKey)) nextSelected.add(folderKey(path))
         node.data.path = path
         node.key = folderKey(path)
         if (node.children?.length) walk(node.children, path)
@@ -466,9 +546,10 @@ function syncFromTree() {
         source.name = path
         const index = nextFiles.length
         nextFiles.push(source)
-        if (selectedBefore?.kind === 'file' && node.data.path === selectedBefore.path) {
+        if (selectedBefore?.kind === 'file' && oldPath === selectedBefore.path) {
           selectedAfter = { kind: 'file', path }
         }
+        if (selectedKeys.value.has(oldKey)) nextSelected.add(fileKey(path))
         node.data.path = path
         node.data.index = index
         node.key = fileKey(path)
@@ -481,6 +562,7 @@ function syncFromTree() {
   files.value = nextFiles
   folders.value = [...nextFolders].sort((a, b) => a.localeCompare(b))
   selection.value = selectedAfter
+  selectedKeys.value = nextSelected
   const activeAt = active ? nextFiles.indexOf(active) : -1
   activeIndex.value = activeAt >= 0 ? activeAt : 0
   dirty.value = true
@@ -513,6 +595,7 @@ async function loadProject() {
     savedPath.value = project.path
     activeIndex.value = 0
     selection.value = project.files[0] ? { kind: 'file', path: project.files[0].name } : null
+    selectedKeys.value = new Set(project.files[0] ? [fileKey(project.files[0].name)] : [])
     rebuildTree()
     lastSaved.value = new Date()
     // 迁移来的密码项目没有密码：打开设置让所有者补一个
@@ -584,14 +667,33 @@ const folderInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
 const uploadError = ref('')
 const uploadNotice = ref('')
+const toast = useToast()
 const creatingKind = ref<'file' | 'folder' | null>(null)
 const creatingParent = ref('')
 const draftName = ref('')
 const draftError = ref('')
 const draftInput = ref<HTMLInputElement | null>(null)
-const deleteIndex = ref<number | null>(null)
-const deleteName = ref('')
-const deleteError = ref('')
+const deleteSummary = ref('')
+const renamingPath = ref('')
+const renameValue = ref('')
+const renameError = ref('')
+const renameInput = ref<HTMLInputElement | null>(null)
+
+function showErrorToast(message: string) {
+  if (!message) return
+  toast.add({ severity: 'error', summary: 'Cannot continue', detail: message, life: 5000 })
+}
+
+watch(draftError, showErrorToast)
+watch(renameError, showErrorToast)
+watch(uploadError, showErrorToast)
+watch(error, showErrorToast)
+watch(draftName, () => {
+  if (draftError.value) draftError.value = ''
+})
+watch(renameValue, () => {
+  if (renameError.value) renameError.value = ''
+})
 const qrSrc = ref('')
 const copied = ref(false)
 let allowLeave = false
@@ -631,8 +733,8 @@ function fileTemplate(language: Language, fileName: string) {
   return `// ${fileName}\n`
 }
 
-function eachDroppable(stat: { data?: ExplorerNode } | null) {
-  return stat?.data?.kind === 'folder'
+function eachDroppable(node: { data?: ExplorerNode } | null) {
+  return node?.data?.data?.kind === 'folder'
 }
 
 function rowStyle(stat: { level?: number }) {
@@ -684,6 +786,15 @@ async function startCreate(kind: 'file' | 'folder') {
   draftInput.value?.focus()
 }
 
+function commitCreateOnBlur() {
+  if (!creatingKind.value) return
+  if (!draftName.value.trim()) {
+    cancelCreate()
+    return
+  }
+  void commitCreate()
+}
+
 function cancelCreate() {
   if (!creatingKind.value) return
   creatingKind.value = null
@@ -704,8 +815,8 @@ async function commitCreate() {
   }
 
   if (creatingKind.value === 'folder') {
-    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value)) {
-      draftError.value = 'Use letters, numbers, dots, underscores or hyphens.'
+    if (!FOLDER_NAME_RE.test(value)) {
+      draftError.value = 'Use letters (including Chinese), numbers, dots, underscores or hyphens.'
       return
     }
     const path = parent ? `${parent}/${value}` : value
@@ -723,12 +834,13 @@ async function commitCreate() {
     draftError.value = ''
     folders.value.push(path)
     selection.value = { kind: 'folder', path }
+    selectedKeys.value = new Set([folderKey(path)])
     rebuildTree()
     await revealNode(path, 'folder')
     return
   }
 
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*\.(html|css|js)$/.test(value)) {
+  if (!FILE_NAME_RE.test(value)) {
     draftError.value = 'File name must end with .html, .css or .js.'
     return
   }
@@ -750,6 +862,7 @@ async function commitCreate() {
   files.value.push({ name: path, language, content: fileTemplate(language, value) })
   activeIndex.value = files.value.length - 1
   selection.value = { kind: 'file', path }
+  selectedKeys.value = new Set([fileKey(path)])
   rebuildTree()
   await revealNode(path, 'file')
 }
@@ -766,18 +879,62 @@ async function onFolderUpload(event: Event) {
   uploading.value = true
   try {
     const result = await parseFolderFiles(list)
-    files.value = result.files
-    folders.value = result.folders
-    activeIndex.value = Math.max(0, result.files.findIndex(file => file.name === 'index.html'))
-    const active = result.files[activeIndex.value]
+    const target = creationParent.value
+    const prefix = target ? `${target}/` : ''
+    const incoming = result.files.map(file => ({ ...file, name: `${prefix}${file.name}` }))
+
+    for (const file of incoming) {
+      if (file.name.length > 120) throw new Error(`${file.name} is too long (max 120 characters).`)
+    }
+
+    const merged = new Map(files.value.map(file => [file.name.toLowerCase(), file]))
+    let replaced = 0
+    for (const file of incoming) {
+      const key = file.name.toLowerCase()
+      if (merged.has(key)) replaced++
+      merged.set(key, file)
+    }
+    const nextFiles = [...merged.values()].sort((a, b) => a.name.localeCompare(b.name))
+
+    if (nextFiles.length > MAX_FILES) throw new Error(`A project can have at most ${MAX_FILES} files.`)
+    const encoder = new TextEncoder()
+    const totalBytes = nextFiles.reduce((sum, file) => sum + encoder.encode(file.content).length, 0)
+    if (totalBytes > MAX_TOTAL_BYTES) throw new Error('The project files are larger than 1 MB in total.')
+
+    const folderSet = new Set(folders.value)
+    for (const file of nextFiles) {
+      const parts = file.name.split('/')
+      parts.pop()
+      let current = ''
+      for (const part of parts) {
+        current = current ? `${current}/${part}` : part
+        folderSet.add(current)
+      }
+    }
+    if (folderSet.size > MAX_FOLDERS) throw new Error(`A project can have at most ${MAX_FOLDERS} folders.`)
+    if ([...folderSet].some(folder => folder.length > 100)) {
+      throw new Error('A folder path is too long (max 100 characters).')
+    }
+
+    files.value = nextFiles
+    folders.value = [...folderSet].sort((a, b) => a.localeCompare(b))
+
+    const preferred = prefix ? `${prefix}index.html` : 'index.html'
+    const preferredIndex = nextFiles.findIndex(file => file.name === preferred)
+    const firstIncoming = nextFiles.findIndex(file => file.name === incoming[0]?.name)
+    activeIndex.value = preferredIndex >= 0 ? preferredIndex : Math.max(0, firstIncoming)
+    const active = nextFiles[activeIndex.value]
     selection.value = active ? { kind: 'file', path: active.name } : null
+    selectedKeys.value = new Set(active ? [fileKey(active.name)] : [])
     rebuildTree()
     if (active) await revealNode(active.name, 'file')
 
+    const targetText = target ? ` into ${target}` : ''
+    const replacedText = replaced ? `, replaced ${replaced} existing file${replaced === 1 ? '' : 's'}` : ''
     const skippedText = result.skipped
       ? `, skipped ${result.skipped} unsupported file${result.skipped === 1 ? '' : 's'}`
       : ''
-    uploadNotice.value = `Imported ${result.files.length} file${result.files.length === 1 ? '' : 's'}${skippedText}.`
+    uploadNotice.value = `Imported ${result.files.length} file${result.files.length === 1 ? '' : 's'}${targetText}${replacedText}${skippedText}.`
   } catch (err) {
     uploadError.value = err instanceof Error ? err.message : 'Could not read the selected folder.'
   } finally {
@@ -785,34 +942,118 @@ async function onFolderUpload(event: Event) {
   }
 }
 
-function requestDelete(index: number) {
-  const file = files.value[index]
-  if (!file) return
-  deleteIndex.value = index
-  deleteName.value = file.name
-  deleteError.value = files.value.length <= 1 ? 'A project needs at least one file.' : ''
+function openDelete() {
+  const items = selectedItems.value
+  if (!items.length) return
+
+  const affected = files.value.filter(file => items.some(item => item.kind === 'file'
+    ? item.path === file.name
+    : file.name.startsWith(`${item.path}/`)))
+
+  if (items.length === 1 && items[0].kind === 'file') {
+    deleteSummary.value = `Delete "${items[0].path}"? This cannot be undone.`
+  } else if (items.length === 1) {
+    const count = affected.length
+    deleteSummary.value = `Delete folder "${items[0].path}"${count ? ` and the ${count} file${count === 1 ? '' : 's'} inside` : ''}? This cannot be undone.`
+  } else {
+    const count = affected.length
+    deleteSummary.value = `Delete ${items.length} selected items${count ? ` (${count} file${count === 1 ? '' : 's'})` : ''}? This cannot be undone.`
+  }
+
   deleteDialog.value = true
 }
 
 function confirmDelete() {
-  if (deleteIndex.value === null) return
-  const index = deleteIndex.value
-  const removed = files.value[index]
-  const removedPath = removed?.name || ''
-  const removedSelected = selection.value?.kind === 'file' && selection.value.path === removedPath
-  deleteIndex.value = null
+  const items = selectedItems.value
+  if (!items.length) return
+
+  const folderPrefixes = items
+    .filter(item => item.kind === 'folder')
+    .map(item => `${item.path}/`)
+  const filePaths = new Set(items.filter(item => item.kind === 'file').map(item => item.path))
+  const removedFiles = files.value.filter(file => filePaths.has(file.name)
+    || folderPrefixes.some(prefix => file.name.startsWith(prefix)))
+  const removedNames = new Set(removedFiles.map(file => file.name))
+
+  files.value = files.value.filter(file => !removedNames.has(file.name))
+  folders.value = folders.value.filter(folder => !items.some(item => item.kind === 'folder'
+    && (folder === item.path || folder.startsWith(`${item.path}/`))))
+
+  const activeName = activeFile.value?.name
+  const keepActive = activeName && !removedNames.has(activeName)
+    ? files.value.findIndex(file => file.name === activeName)
+    : -1
+  activeIndex.value = keepActive >= 0 ? keepActive : 0
+
+  const next = files.value[activeIndex.value] ?? null
+  selection.value = next ? { kind: 'file', path: next.name } : null
+  selectedKeys.value = new Set(next ? [fileKey(next.name)] : [])
   deleteDialog.value = false
-
-  files.value.splice(index, 1)
-  if (index < activeIndex.value) activeIndex.value--
-  else if (activeIndex.value >= files.value.length) activeIndex.value = files.value.length - 1
-  if (activeIndex.value < 0) activeIndex.value = 0
-
-  if (removedSelected) {
-    const next = files.value[activeIndex.value]
-    selection.value = next ? { kind: 'file', path: next.name } : null
-  }
   rebuildTree()
+}
+
+function startRename() {
+  const target = renameTarget.value
+  if (!target) return
+  if (creatingKind.value) cancelCreate()
+  renameError.value = ''
+  renamingPath.value = target.path
+  renameValue.value = target.path.split('/').pop() || ''
+  void nextTick(() => {
+    renameInput.value?.focus()
+    renameInput.value?.select()
+  })
+}
+
+function cancelRename() {
+  renamingPath.value = ''
+  renameValue.value = ''
+}
+
+async function commitRename() {
+  if (!renamingPath.value) return
+  const oldPath = renamingPath.value
+  const file = files.value.find(item => item.name === oldPath)
+  renamingPath.value = ''
+
+  if (!file) {
+    renameValue.value = ''
+    return
+  }
+
+  const value = renameValue.value.trim()
+  const parts = oldPath.split('/')
+  const oldName = parts.pop() || ''
+  const parent = parts.join('/')
+  const newPath = parent ? `${parent}/${value}` : value
+
+  if (!value || value === oldName) {
+    renameValue.value = ''
+    return
+  }
+  if (!FILE_NAME_RE.test(value)) {
+    renameError.value = 'File name must end with .html, .css or .js.'
+    renameValue.value = ''
+    return
+  }
+  if (newPath.length > 120) {
+    renameError.value = 'File path is too long.'
+    renameValue.value = ''
+    return
+  }
+  if (files.value.some(item => item !== file && item.name.toLowerCase() === newPath.toLowerCase())) {
+    renameError.value = 'A file with that name already exists.'
+    renameValue.value = ''
+    return
+  }
+
+  file.name = newPath
+  selection.value = { kind: 'file', path: newPath }
+  selectedKeys.value = new Set([fileKey(newPath)])
+  renameValue.value = ''
+  renameError.value = ''
+  rebuildTree()
+  await revealNode(newPath, 'file')
 }
 
 function openSettings() {
@@ -1197,12 +1438,16 @@ onBeforeRouteLeave(to => {
   border-bottom: 1px solid var(--p-content-border-color);
 
   h2 {
+    min-width: 0;
     margin: 0;
-    font-size: 0.7rem;
+    overflow: hidden;
+    font-size: 11.5px;
     font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--p-text-muted-color);
+    letter-spacing: 0;
+    text-overflow: ellipsis;
+    text-transform: none;
+    white-space: nowrap;
+    color: var(--p-text-color);
   }
 }
 
@@ -1286,12 +1531,6 @@ onBeforeRouteLeave(to => {
   display: none;
 }
 
-.tree-error {
-  margin: 0.35rem 0.6rem;
-  color: var(--p-red-500);
-  font-size: 0.72rem;
-}
-
 .tree-notice {
   margin: 0.35rem 0.6rem;
   color: var(--p-text-muted-color);
@@ -1330,7 +1569,7 @@ onBeforeRouteLeave(to => {
   }
 
   :deep(.tree-hline) {
-    height: 1px;
+    display: none;
   }
 
   :deep(.tree-node:focus-visible) {
@@ -1413,14 +1652,10 @@ onBeforeRouteLeave(to => {
   min-width: 0;
   padding-right: 0;
   overflow: hidden;
-  font-size: 0.78rem;
+  font-family: var(--font-code);
+  font-size: 11.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.tree-row:hover .tree-label,
-.tree-row.is-selected .tree-label {
-  padding-right: 1.1rem;
 }
 
 .tree-input {
@@ -1434,32 +1669,8 @@ onBeforeRouteLeave(to => {
   background: var(--p-content-background);
   color: var(--p-text-color);
   font: inherit;
-  font-size: 0.78rem;
-}
-
-.file-remove {
-  position: absolute;
-  top: 50%;
-  right: 2px;
-  z-index: 1;
-  padding: 0.05rem 0.25rem;
-  border: 0;
-  background: transparent;
-  color: var(--p-text-muted-color);
-  font-size: 0.95rem;
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0;
-  transform: translateY(-50%);
-
-  &:hover {
-    color: var(--p-text-color);
-  }
-}
-
-.tree-row:hover .file-remove,
-.tree-row.is-selected .file-remove {
-  opacity: 1;
+  font-family: var(--font-code);
+  font-size: 11.5px;
 }
 
 .editor-panel {

@@ -124,13 +124,15 @@ The creator at `/new` matches the site navigation width (`max-width: 1300px`): t
 
 - Only `.html`, `.css` and `.js` files; at most 20 files, 512 KB each and 1 MB total per project.
 - **Max 100 projects per BITS account.**
-- Files can live in folders; empty folders are stored in the project's `folders` JSON column.
+- Files can live in folders; empty folders are stored in the project's `folders` JSON column. Folder and file names may use any letters (including Chinese), numbers, dots, underscores and hyphens.
 - Everything is stored in MySQL (`projects`, `project_files`). Nothing is written to disk.
 - Visibility: `public` or `password` (scrypt hash; the plain password is never stored).
 - One item is selected at a time, like VS Code. Selecting a folder highlights it but keeps the last file open in the editor.
-- New file/folder is created inline in the tree: inside the selected folder, or beside the selected file.
-- `Upload folder` reads a local folder entirely in the browser, keeps its nested structure, imports `.html` / `.css` / `.js`, skips other files and replaces the current project files. Limits match the backend (20 files, 512 KB each, 1 MB total); nothing is uploaded until you save.
+- New file/folder is created inline in the tree: inside the selected folder, or beside the selected file. Losing focus creates it, Esc cancels.
+- `Upload folder` reads a local folder entirely in the browser and imports it into the currently selected folder (root when nothing is selected), keeping its nested structure. It imports `.html` / `.css` / `.js`, skips other files, overwrites files with the same path and keeps the rest. Limits match the backend (20 files, 512 KB each, 1 MB total); nothing is uploaded until you save.
 - Drag files and folders in the explorer to move/reorder them; files cannot contain other files. Paths are rewritten and saved. `Alt+Arrow` keys also reorder.
+- Click a folder row to expand or collapse it. Click empty space to deselect and target the project root.
+- Cmd/Ctrl-click multi-selects files and folders; the toolbar delete removes the whole selection (folders recursively). The rename button next to it renames the selected file inline.
 - `Save` opens the project settings dialog the first time, then saves directly on later clicks. The settings icon next to Save reopens the dialog at any time.
 - `Share` opens a QR code and the project link.
 - The dashboard lists your projects 20 per page with search (name or URL), sorting (last updated / newest / name), a visibility icon, an on/off switch, `Edit` and `Delete`.

@@ -25,8 +25,8 @@ const MAX_FILES = 20
 const MAX_FOLDERS = 50
 const MAX_FILE_BYTES = 512 * 1024
 const MAX_TOTAL_BYTES = 1024 * 1024
-const FILE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.(html|css|js)$/
-const SEGMENT_RE = /^[A-Za-z0-9._-]+$/
+const FILE_RE = /^[\p{L}\p{N}][\p{L}\p{N}._-]{0,79}\.(html|css|js)$/u
+const SEGMENT_RE = /^[\p{L}\p{N}._-]+$/u
 
 export async function parseFolderFiles(list: FolderFileLike[]): Promise<FolderImportResult> {
   const entries: { file: FolderFileLike; path: string }[] = []
@@ -52,7 +52,7 @@ export async function parseFolderFiles(list: FolderFileLike[]): Promise<FolderIm
     }
     if (!FILE_RE.test(base) || path.length > 120
       || path.split('/').some(segment => !SEGMENT_RE.test(segment) || segment === '.' || segment === '..')) {
-      throw new Error(`Cannot import ${relative}. Use lowercase .html/.css/.js names and letters, numbers, dots, underscores or hyphens.`)
+      throw new Error(`Cannot import ${relative}. Use lowercase .html/.css/.js names and letters (including Chinese), numbers, dots, underscores or hyphens.`)
     }
 
     const key = path.toLowerCase()
