@@ -51,13 +51,9 @@
               <span class="path">
                 <template v-if="project.enabled">
                   <a :href="`${contentUrl}${project.path}/`" target="_blank" rel="noopener noreferrer"
-                    :title="`Open ${project.name}`">
-                    <span class="path-host">{{ host }}</span>{{ project.path }}
-                  </a>
+                    :title="`Open ${project.name}`">{{ project.path }}</a>
                 </template>
-                <template v-else>
-                  <span class="path-host">{{ host }}</span>{{ project.path }}
-                </template>
+                <template v-else>{{ project.path }}</template>
               </span>
               <span class="dot" aria-hidden="true">·</span>
               <span class="updated">Updated {{ formatDate(project.updatedAt) }}</span>
@@ -156,7 +152,6 @@ if (!user.value) await navigateTo('/sign')
 
 const config = useRuntimeConfig()
 const contentUrl = String(config.public.contentUrl).replace(/\/+$/, '')
-const host = contentUrl.replace(/^https?:\/\//, '')
 
 const sortOptions = [
   { label: 'Last updated', value: 'updated' },
@@ -520,7 +515,6 @@ a :deep(svg) {
     overflow: hidden;
   }
 
-  .path-host,
   .dot,
   .updated {
     display: none;

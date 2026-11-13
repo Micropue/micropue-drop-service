@@ -135,6 +135,7 @@ The creator at `/new` matches the site navigation width (`max-width: 1300px`): t
 - The toolbar delete removes the selected file or folder (folders recursively); the rename button next to it renames the selected file or folder inline. Selection is single-item again; multi-select was removed.
 - `Save` opens the project settings dialog the first time, then saves directly on later clicks. The settings icon next to Save reopens the dialog at any time.
 - `Share` opens a QR code and the project link.
+- The preview button next to the settings icon opens a right-side iframe preview of the current HTML file. Project CSS and JS are inlined, internal HTML links navigate inside the preview, the iframe is sandboxed, and the refresh button rebuilds it after edits.
 - The dashboard lists your projects 20 per page with search (name or URL), sorting (last updated / newest / name), a visibility icon, an on/off switch, `Edit` and `Delete`.
   - The switch controls whether the site is served at all — it is not visibility. Visibility (`public` / `password`) is still changed in the editor settings.
   - `Edit` reopens the project in the creator (`/new?edit=<sid>`); `Delete` asks for confirmation and removes the project with its files.
@@ -154,7 +155,8 @@ Projects are served by Nitro straight from MySQL — nothing is written to disk 
 - The dashboard switch (`enabled`) disables the site entirely: every request returns 404 while off.
 - On the content domain, app pages and `/api/*` are 404; only project files and `/api/unlock/*` are reachable.
 - Password attempts are limited to 10 per 10 minutes per project + IP in Redis.
-- Password pages are `no-store` and `X-Robots-Tag: noindex`; `sitemap.xml` lists only public, enabled projects on the content domain.
+- Project files, the content notice and password pages send `Cache-Control: no-store` plus `CDN-Cache-Control: no-store`, so browsers and Cloudflare do not keep stale copies.
+- Password pages also send `X-Robots-Tag: noindex`; `sitemap.xml` lists only public, enabled projects on the content domain.
 - The dashboard path text links to the live site and is not a link when the project is disabled.
 
 Set the content host in `.env`:

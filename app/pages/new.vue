@@ -2,7 +2,10 @@
   <div class="creator">
     <header class="creator-head">
       <div>
-        <h1 class="project-path" :title="projectPathLabel">{{ projectPathLabel }}</h1>
+        <h1 class="project-path" :title="loadingProject ? undefined : projectPathLabel">
+          <span v-if="loadingProject" class="path-skeleton" aria-hidden="true"></span>
+          <template v-else>{{ projectPathLabel }}</template>
+        </h1>
       </div>
       <div class="save-area">
         <span class="status" :class="`status--${statusTone}`" aria-live="polite">
@@ -20,6 +23,10 @@
         <Button class="settings-button" severity="secondary" rounded :disabled="loadingProject || loadFailed"
           aria-label="Project settings" title="Project settings" @click="openSettings">
           <Cog aria-hidden="true" />
+        </Button>
+        <Button class="preview-button" severity="secondary" rounded :disabled="loadingProject || loadFailed || !previewEntry"
+          aria-label="Preview" title="Preview" @click="openPreview">
+          <Eye aria-hidden="true" />
         </Button>
       </div>
     </header>
@@ -128,6 +135,35 @@
       </template>
     </div>
 
+    <p class="cache-note">Some pages may not update in real time due to caching.</p>
+
+    <div class="preview-backdrop" :class="{ 'is-open': previewOpen }" @click="previewOpen = false"></div>
+    <aside class="preview-panel" :class="{ 'is-open': previewOpen }" :aria-hidden="!previewOpen"
+      aria-label="Project preview">
+      <header>
+        <div class="preview-title">
+          <span class="preview-label">PREVIEW</span>
+          <span class="preview-file">{{ previewEntryName || 'No HTML file' }}</span>
+        </div>
+        <div class="preview-actions">
+          <button type="button" class="preview-action" title="Refresh preview" aria-label="Refresh preview"
+            @click="refreshPreview">
+            <Refresh />
+          </button>
+          <button type="button" class="preview-action" title="Close preview" aria-label="Close preview"
+            @click="previewOpen = false">
+            <Times />
+          </button>
+        </div>
+      </header>
+      <template v-if="previewOpen">
+        <iframe v-if="previewHtml" ref="previewFrame" :srcdoc="previewHtml"
+          sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"
+          title="Project preview"></iframe>
+        <div v-else class="preview-empty">No HTML file to preview.</div>
+      </template>
+    </aside>
+
     <Dialog v-model:visible="settingsDialog" modal header="Project settings" :style="{ width: 'min(480px, 92vw)' }"
       :draggable="false">
       <div class="dialog-fields">
@@ -235,6 +271,8 @@ import FolderOpen from '@primeicons/vue/folder-open'
 import SaveIcon from '@primeicons/vue/save'
 import ShareAlt from '@primeicons/vue/share-alt'
 import Cog from '@primeicons/vue/cog'
+import Eye from '@primeicons/vue/eye'
+import Refresh from '@primeicons/vue/refresh'
 import Copy from '@primeicons/vue/copy'
 import Trash from '@primeicons/vue/trash'
 import Pencil from '@primeicons/vue/pencil'
@@ -328,6 +366,19 @@ const files = ref<DraftFile[]>([
 ])
 const activeIndex = ref(0)
 const activeFile = computed(() => files.value[activeIndex.value] ?? null)
+
+const previewEntry = computed(() => {
+  if (activeFile.value?.language === 'html') return activeFile.value
+  return files.value.find(file => file.name.toLowerCase() === 'index.html')
+    || files.value.find(file => file.language === 'html')
+    || null
+})
+const previewOpen = ref(false)
+const previewHtml = ref('')
+const previewPage = ref('')
+const previewFrame = ref<HTMLIFrameElement | null>(null)
+const previewCurrent = computed(() => findPreviewFile(previewPage.value) || previewEntry.value)
+const previewEntryName = computed(() => previewCurrent.value?.name || '')
 
 const folders = ref<string[]>([])
 const folderKey = (path: string) => `folder:${path}`
@@ -1085,6 +1136,107 @@ async function commitRename() {
   await revealNode(newPath, 'folder')
 }
 
+function resolvePreviewPath(fromFile: string, target: string) {
+  if (!target) return null
+  if (/^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(target) || target.startsWith('data:') || target.startsWith('#')) return null
+
+  const clean = target.split('#')[0].split('?')[0]
+  if (!clean) return null
+  if (clean.startsWith('/')) return clean.replace(/^\/+/, '')
+
+  const parts = fromFile.split('/')
+  parts.pop()
+  for (const part of clean.split('/')) {
+    if (!part || part === '.') continue
+    if (part === '..') parts.pop()
+    else parts.push(part)
+  }
+  return parts.join('/')
+}
+
+function findPreviewFile(path: string | null) {
+  if (!path) return null
+  return files.value.find(file => file.name === path)
+    || files.value.find(file => file.name.toLowerCase() === path.toLowerCase())
+    || null
+}
+
+function buildPreviewHtml() {
+  if (typeof window === 'undefined') return ''
+  const entry = previewCurrent.value
+  if (!entry) return ''
+
+  const doc = new DOMParser().parseFromString(entry.content, 'text/html')
+  doc.querySelectorAll('base').forEach(node => node.remove())
+
+  doc.querySelectorAll('link[href]').forEach(node => {
+    const rel = (node.getAttribute('rel') || '').toLowerCase().split(/\s+/)
+    if (!rel.includes('stylesheet')) return
+    const file = findPreviewFile(resolvePreviewPath(entry.name, node.getAttribute('href') || ''))
+    if (!file || file.language !== 'css') return
+    const style = doc.createElement('style')
+    style.textContent = file.content.replace(/<\/style/gi, '<\\/style')
+    node.replaceWith(style)
+  })
+
+  doc.querySelectorAll('script[src]').forEach(node => {
+    const file = findPreviewFile(resolvePreviewPath(entry.name, node.getAttribute('src') || ''))
+    if (!file || file.language !== 'js') return
+    const script = doc.createElement('script')
+    for (const attr of Array.from(node.attributes)) {
+      if (attr.name !== 'src') script.setAttribute(attr.name, attr.value)
+    }
+    script.textContent = file.content.replace(/<\/script/gi, '<\\/script')
+    node.replaceWith(script)
+  })
+
+  // 项目内 HTML 链接交给父页面切换预览，不导航到主站
+  const runtime = doc.createElement('script')
+  runtime.textContent = `document.addEventListener('click', function (event) {
+    var link = event.target && event.target.closest ? event.target.closest('a') : null;
+    if (!link || link.hasAttribute('download')) return;
+    var href = link.getAttribute('href') || '';
+    if (!href || href.charAt(0) === '#' || /^(?:[a-z][a-z0-9+.-]*:|\\/\\/)/i.test(href)) return;
+    event.preventDefault();
+    window.parent.postMessage({ type: 'drop-preview-navigate', href: href }, '*');
+  });`
+  ;(doc.body || doc.documentElement).appendChild(runtime)
+
+  return `<!doctype html>${doc.documentElement.outerHTML}`
+}
+
+function openPreview() {
+  if (!previewEntry.value) return
+  previewPage.value = previewEntry.value.name
+  previewHtml.value = buildPreviewHtml()
+  previewOpen.value = true
+}
+
+function refreshPreview() {
+  if (!previewCurrent.value) previewPage.value = previewEntry.value?.name || ''
+  previewHtml.value = buildPreviewHtml()
+}
+
+function onPreviewMessage(event: MessageEvent) {
+  if (!previewOpen.value || event.source !== previewFrame.value?.contentWindow) return
+  const data = event.data as { type?: string; href?: string } | null
+  if (data?.type !== 'drop-preview-navigate' || !data.href) return
+
+  const target = findPreviewFile(resolvePreviewPath(previewPage.value, data.href))
+  if (!target || target.language !== 'html') {
+    toast.add({
+      severity: 'warn',
+      summary: 'Preview',
+      detail: 'This link is not an HTML file in this project.',
+      life: 3000
+    })
+    return
+  }
+
+  previewPage.value = target.name
+  previewHtml.value = buildPreviewHtml()
+}
+
 function openSettings() {
   if (loadingProject.value || loadFailed.value) return
   error.value = ''
@@ -1203,6 +1355,10 @@ async function save() {
 }
 
 function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && previewOpen.value) {
+    previewOpen.value = false
+    return
+  }
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
     event.preventDefault()
     if (settingsDialog.value) void save()
@@ -1219,12 +1375,14 @@ function onBeforeUnload(event: BeforeUnloadEvent) {
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('beforeunload', onBeforeUnload)
+  window.addEventListener('message', onPreviewMessage)
   void loadProject()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('beforeunload', onBeforeUnload)
+  window.removeEventListener('message', onPreviewMessage)
 })
 
 onBeforeRouteLeave(to => {
@@ -1273,6 +1431,32 @@ onBeforeRouteLeave(to => {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  .path-skeleton {
+    display: inline-block;
+    width: min(280px, 50vw);
+    height: 1.15em;
+    border-radius: 6px;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--p-text-color) 8%, transparent) 25%,
+      color-mix(in srgb, var(--p-text-color) 15%, transparent) 37%,
+      color-mix(in srgb, var(--p-text-color) 8%, transparent) 63%
+    );
+    background-size: 400% 100%;
+    vertical-align: middle;
+    animation: path-skeleton 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes path-skeleton {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: 0 0;
+  }
 }
 
 .save-area {
@@ -1291,7 +1475,8 @@ onBeforeRouteLeave(to => {
     height: 1rem;
   }
 
-  .settings-button {
+  .settings-button,
+  .preview-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1310,15 +1495,15 @@ onBeforeRouteLeave(to => {
   .status {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    font-size: 0.72rem;
+    gap: 0.45rem;
+    font-size: 12px;
     color: var(--p-text-muted-color);
     white-space: nowrap;
   }
 
   .status-dot {
-    width: 6px;
-    height: 6px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background: color-mix(in srgb, var(--p-text-color) 32%, transparent);
   }
@@ -1355,6 +1540,127 @@ onBeforeRouteLeave(to => {
   .status--saving .status-dot {
     animation: none;
   }
+}
+
+.preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(9, 9, 11, 0.38);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+
+  &.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.preview-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 51;
+  display: flex;
+  flex-direction: column;
+  width: min(680px, 92vw);
+  background: var(--p-content-background);
+  border-left: 1px solid var(--p-content-border-color);
+  box-shadow: -24px 0 48px rgba(0, 0, 0, 0.12);
+  visibility: hidden;
+  transform: translateX(100%);
+  transition: transform 0.25s ease, visibility 0s linear 0.25s;
+
+  &.is-open {
+    visibility: visible;
+    transform: translateX(0);
+    transition: transform 0.25s ease;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex: none;
+    height: 52px;
+    padding: 0 1rem;
+    border-bottom: 1px solid var(--p-content-border-color);
+  }
+
+  iframe {
+    flex: 1;
+    width: 100%;
+    border: 0;
+    background: #fff;
+  }
+}
+
+.preview-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.preview-label {
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  color: var(--p-text-muted-color);
+}
+
+.preview-file {
+  overflow: hidden;
+  font-family: var(--font-code);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+.preview-action {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--p-text-muted-color);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--p-content-hover-background);
+    color: var(--p-text-color);
+  }
+
+  svg {
+    width: 0.9rem;
+    height: 0.9rem;
+  }
+}
+
+.preview-empty {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  color: var(--p-text-muted-color);
+  font-size: 0.85rem;
+}
+
+.cache-note {
+  margin: 1.75rem 0 0;
+  font-size: 12px;
+  color: var(--p-text-muted-color);
+  text-align: center;
 }
 
 .workspace {

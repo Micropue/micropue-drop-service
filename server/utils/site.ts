@@ -71,10 +71,17 @@ a { color: inherit; }
 </html>`
 }
 
+function noStore(event: H3Event) {
+  setHeader(event, 'cache-control', 'no-store, no-cache, must-revalidate')
+  setHeader(event, 'cdn-cache-control', 'no-store')
+  setHeader(event, 'pragma', 'no-cache')
+  setHeader(event, 'expires', '0')
+}
+
 function notFound(event: H3Event, message = 'This page does not exist.') {
   setResponseStatus(event, 404)
   setHeader(event, 'content-type', 'text/html; charset=utf-8')
-  setHeader(event, 'cache-control', 'no-store')
+  noStore(event)
   setHeader(event, 'x-robots-tag', 'noindex')
   return pageHtml('Not found — DROP', `<p class="brand">MICROPUE DROP</p><h1>Not found</h1><p>${message}</p><a class="back" href="/">Go to DROP</a>`)
 }
@@ -118,7 +125,7 @@ export function contentHome(event: H3Event) {
   const label = site.replace(/^https?:\/\//, '')
 
   setHeader(event, 'content-type', 'text/html; charset=utf-8')
-  setHeader(event, 'cache-control', 'no-store')
+  noStore(event)
   setHeader(event, 'x-robots-tag', 'noindex')
 
   return pageHtml('Drop content service', `<p>This is Drop's content service. Visit <a href="${escapeHtml(site)}">${escapeHtml(label)}</a> to open the main site.</p>`)
@@ -201,7 +208,7 @@ export async function serveProject(event: H3Event, username: string, slug: strin
     if (!(await hasUnlock(event, project.sid))) {
       setResponseStatus(event, 401)
       setHeader(event, 'content-type', 'text/html; charset=utf-8')
-      setHeader(event, 'cache-control', 'no-store')
+      noStore(event)
       setHeader(event, 'x-robots-tag', 'noindex')
       return passwordPage(project, url.pathname + url.search, url.searchParams.get('error') === '1')
     }
@@ -224,7 +231,7 @@ export async function serveProject(event: H3Event, username: string, slug: strin
   if (!file) return notFound(event)
 
   setHeader(event, 'content-type', `${MIME[file.language]}; charset=utf-8`)
-  setHeader(event, 'cache-control', project.visibility === 'public' ? 'public, max-age=60' : 'private, no-store')
+  noStore(event)
   setHeader(event, 'x-content-type-options', 'nosniff')
   if (project.visibility !== 'public') setHeader(event, 'x-robots-tag', 'noindex')
 
