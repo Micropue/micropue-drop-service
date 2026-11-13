@@ -101,7 +101,7 @@ DROP has no password login. The only way in is BITS OAuth:
 
 ## Privacy
 
-- The policy lives at `/privacy` (public) and is linked from the sign-in page, the account page and the consent dialog.
+- The policy lives at `/privacy` (public) and is linked from the site header, the sign-in page and the consent dialog.
 - Logged-in users must accept it once; the dialog is blocking and cannot be dismissed. Acceptance is stored in `accounts.privacy_accepted_at`.
 - The policy states that publishers own their content, that DROP does not pre-screen or take responsibility for it, and includes the liability disclaimer.
 
@@ -136,7 +136,8 @@ The creator at `/new` matches the site navigation width (`max-width: 1300px`): t
 - `Save` opens the project settings dialog the first time, then saves directly on later clicks. The settings icon next to Save reopens the dialog at any time.
 - `Share` opens a QR code and the project link.
 - The preview button next to the settings icon opens a right-side iframe preview of the current HTML file. Project CSS and JS are inlined, internal HTML links navigate inside the preview, the iframe is sandboxed, and the refresh button rebuilds it after edits.
-- The dashboard lists your projects 20 per page with search (name or URL), sorting (last updated / newest / name), a visibility icon, an on/off switch, `Edit` and `Delete`.
+- The dashboard lists your projects 20 per page with search (name or URL), sorting (last updated / newest / name), a weekly traffic sparkline, a visibility icon, an on/off switch, `Edit` and `Delete`.
+  - Traffic counts unique HTML visitors per day (IP + user agent hash), keeps only the current week starting Sunday, and opens a full line chart when clicked.
   - The switch controls whether the site is served at all — it is not visibility. Visibility (`public` / `password`) is still changed in the editor settings.
   - `Edit` reopens the project in the creator (`/new?edit=<sid>`); `Delete` asks for confirmation and removes the project with its files.
 - On screens ≤900px the explorer becomes a drawer.

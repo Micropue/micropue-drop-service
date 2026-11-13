@@ -3,6 +3,10 @@
         <nav class="navbar" aria-label="主导航">
             <BrandLogo class="header-brand" />
             <div class="nav-actions">
+                <NuxtLink to="/privacy" class="privacy-trigger" aria-label="Privacy Policy">
+                    <Book aria-hidden="true" />
+                    <span class="privacy-trigger-label">Privacy</span>
+                </NuxtLink>
                 <Button as="a" class="github-link" severity="secondary" rounded :href="githubUrl" target="_blank"
                     rel="noopener noreferrer">
                     <Github aria-hidden="true" />
@@ -65,6 +69,7 @@ import Dialog from 'primevue/dialog'
 import Github from '@primeicons/vue/github'
 import ArrowUpRight from '@primeicons/vue/arrow-up-right'
 import SignIn from '@primeicons/vue/sign-in'
+import Book from '@primeicons/vue/book'
 import SignOut from '@primeicons/vue/sign-out'
 import Check from '@primeicons/vue/check'
 
@@ -150,6 +155,31 @@ header {
             align-items: center;
             gap: 0.75rem;
 
+            .privacy-trigger {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.45rem;
+                height: 36px;
+                padding: 0 0.7rem;
+                border: 1px solid var(--p-content-border-color);
+                border-radius: 999px;
+                color: var(--p-text-muted-color);
+                font-size: 0.85rem;
+                text-decoration: none;
+                transition: border-color 0.15s, color 0.15s;
+
+                &:hover,
+                &:focus-visible {
+                    border-color: var(--p-primary-color);
+                    color: var(--p-text-color);
+                }
+
+                &.router-link-active {
+                    border-color: color-mix(in srgb, var(--p-primary-color) 45%, var(--p-content-border-color));
+                    color: var(--p-text-color);
+                }
+            }
+
             .github-link {
                 width: fit-content;
                 min-height: 36px;
@@ -219,6 +249,19 @@ header {
     @media screen and (max-width: 360px) {
         .header-brand {
             font-size: 1.5em;
+        }
+    }
+
+    @media screen and (max-width: 820px) {
+        .nav-actions .privacy-trigger-label {
+            display: none;
+        }
+
+        .nav-actions .privacy-trigger {
+            justify-content: center;
+            width: 36px;
+            padding: 0;
+            border-radius: 50%;
         }
     }
 

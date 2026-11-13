@@ -54,6 +54,18 @@ CREATE TABLE IF NOT EXISTS \`project_files\` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='DROP 项目文件表'
 `
 
+const PROJECT_VISITS_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS \`project_visits\` (
+  \`project_sid\` CHAR(36) NOT NULL COMMENT '项目UUID',
+  \`day\` DATE NOT NULL COMMENT '访问日期（本地时区）',
+  \`visitor\` CHAR(32) NOT NULL COMMENT 'IP + User-Agent 的哈希，用于按天去重',
+  \`created_at\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`project_sid\`, \`day\`, \`visitor\`),
+  KEY \`idx_project_visits_day\` (\`day\`),
+  CONSTRAINT \`fk_project_visits_project\` FOREIGN KEY (\`project_sid\`) REFERENCES \`projects\` (\`sid\`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='DROP 项目访问统计表（仅保留本周）'
+`
+
 // MySQL 连接池：用户信息来自 BITS，DROP 只存部署相关的项目数据
 const pool = mysql.createPool({
   host: process.env.MYSQL_HOST || '127.0.0.1',
@@ -75,6 +87,7 @@ export async function ensureSchema() {
   await pool.query(ACCOUNTS_TABLE_SQL)
   await pool.query(PROJECTS_TABLE_SQL)
   await pool.query(PROJECT_FILES_TABLE_SQL)
+  await pool.query(PROJECT_VISITS_TABLE_SQL)
 
   // 旧账户表补隐私政策同意时间
   const [privacyColumns] = await pool.query<RowDataPacket[]>(

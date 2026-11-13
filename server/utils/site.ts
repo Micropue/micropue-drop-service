@@ -1,4 +1,4 @@
-import { scryptSync, timingSafeEqual } from 'node:crypto'
+import { createHash, scryptSync, timingSafeEqual } from 'node:crypto'
 import { jwtVerify, SignJWT } from 'jose'
 import type { H3Event } from 'h3'
 import type { RowDataPacket } from 'mysql2/promise'
@@ -229,6 +229,23 @@ export async function serveProject(event: H3Event, username: string, slug: strin
   )
   const file = rows[0]
   if (!file) return notFound(event)
+
+  // 只统计 HTML 页面访问；同一 IP+UA 每天只计一次
+  if (event.method === 'GET' && file.language === 'html') {
+    try {
+      const ip = getRequestHeader(event, 'cf-connecting-ip')
+        || getRequestIP(event, { xForwardedFor: true })
+        || ''
+      const userAgent = getRequestHeader(event, 'user-agent') || ''
+      const visitor = createHash('sha256').update(`${ip}|${userAgent}`).digest('hex').slice(0, 32)
+      await useDb().query(
+        'INSERT IGNORE INTO `project_visits` (`project_sid`, `day`, `visitor`) VALUES (?, CURDATE(), ?)',
+        [project.sid, visitor]
+      )
+    } catch (err) {
+      console.warn('[visits] failed to record visit', err)
+    }
+  }
 
   setHeader(event, 'content-type', `${MIME[file.language]}; charset=utf-8`)
   noStore(event)

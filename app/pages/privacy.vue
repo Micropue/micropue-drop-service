@@ -27,8 +27,10 @@
       </li>
       <li>
         <strong>Technical data.</strong> A session cookie, an OAuth state cookie, password-unlock cookies,
-        request timestamps, and the IP address used for password-attempt rate limiting. We do not use advertising
-        trackers and we do not sell personal data.
+        request timestamps, and the IP address used for password-attempt rate limiting. To count unique project
+        visitors, we store a SHA-256 hash of your IP address and browser user agent for the current week
+        (Sunday–Saturday); those rows are retained only for the current week. We do not use advertising trackers and we
+        do not sell personal data.
       </li>
     </ul>
 

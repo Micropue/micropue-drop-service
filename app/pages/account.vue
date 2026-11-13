@@ -40,9 +40,9 @@
         <ExternalLink aria-hidden="true" />
         <span>View BITS profile</span>
       </a>
-      <NuxtLink to="/privacy" target="_blank">
-        <Shield aria-hidden="true" />
-        <span>Privacy Policy</span>
+      <NuxtLink to="/dashboard">
+        <ThLarge aria-hidden="true" />
+        <span>Dashboard</span>
       </NuxtLink>
     </div>
   </div>
@@ -52,7 +52,7 @@
 import Button from 'primevue/button'
 import SignOut from '@primeicons/vue/sign-out'
 import ExternalLink from '@primeicons/vue/external-link'
-import Shield from '@primeicons/vue/shield'
+import ThLarge from '@primeicons/vue/th-large'
 
 useHead({ title: 'Account' })
 

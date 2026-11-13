@@ -107,7 +107,7 @@ const highlights = [
   width: 90%;
   max-width: 1300px;
   margin: 0 auto;
-  padding: clamp(4rem, 12vh, 9rem) 0 6rem;
+  padding: clamp(4rem, 12vh, 9rem) 0 2rem;
 }
 
 .dot-bg {

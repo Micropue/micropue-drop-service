@@ -2,7 +2,6 @@
   <div class="dashboard">
     <header class="head">
       <div>
-        <p class="eyebrow">MICROPUE DROP</p>
         <h1>Dashboard</h1>
         <p class="sub">Signed in as {{ user?.nickname || user?.username }}.</p>
       </div>
@@ -60,6 +59,17 @@
             </span>
           </div>
 
+          <button type="button" class="traffic-cell"
+            :aria-label="`Traffic for ${project.name}: ${project.visits.today} today, ${project.visits.total} this week`"
+            :title="`${project.visits.today} today · ${project.visits.total} this week`"
+            @click="openTraffic(project)">
+            <svg class="traffic-spark" viewBox="0 0 56 16" preserveAspectRatio="none" aria-hidden="true">
+              <polyline :points="sparklinePoints(project.visits.week)" />
+            </svg>
+            <span class="traffic-today">{{ project.visits.today }}</span>
+            <span class="traffic-unit">{{ project.visits.today === 1 ? 'visitor' : 'visitors' }}</span>
+          </button>
+
           <span class="visibility-icon" :class="`visibility-icon--${project.visibility}`"
             role="img" :aria-label="visibilityLabel(project.visibility)" :title="visibilityLabel(project.visibility)">
             <Globe v-if="project.visibility === 'public'" aria-hidden="true" />
@@ -91,6 +101,31 @@
         template="PrevPageLink CurrentPageReport NextPageLink" current-page-report-template="{currentPage} / {totalPages}"
         @page="event => (page = event.page + 1)" />
     </template>
+
+    <Dialog v-model:visible="trafficDialog" modal header="Traffic" :style="{ width: 'min(640px, 94vw)' }"
+      :draggable="false">
+      <div v-if="trafficProject" class="traffic-dialog">
+        <div class="traffic-summary">
+          <div><strong>{{ trafficProject.visits.today }}</strong><small>today</small></div>
+          <div><strong>{{ trafficProject.visits.total }}</strong><small>this week</small></div>
+          <span class="traffic-project-name">{{ trafficProject.name }}</span>
+        </div>
+        <svg class="traffic-chart" viewBox="0 0 560 190" role="img" aria-label="Unique visitors this week">
+          <line v-for="tick in trafficTicks" :key="tick.value" x1="36" :y1="tick.y" x2="548" :y2="tick.y"
+            class="grid" />
+          <text v-for="tick in trafficTicks" :key="`label-${tick.value}`" x="30" :y="tick.y + 3"
+            text-anchor="end" class="axis">{{ tick.value }}</text>
+          <polyline :points="trafficPointsString" class="line" />
+          <circle v-for="(point, index) in trafficPoints" :key="index" :cx="point[0]" :cy="point[1]" r="3"
+            class="dot">
+            <title>{{ trafficDayLabels[index] }}: {{ trafficWeek[index] }}</title>
+          </circle>
+          <text v-for="(label, index) in trafficDayLabels" :key="label" :x="trafficX(index)" y="184"
+            text-anchor="middle" class="axis">{{ label }}</text>
+        </svg>
+        <p class="traffic-hint">Unique visitors per day. Only the current week (Sunday–Saturday) is kept.</p>
+      </div>
+    </Dialog>
 
     <Dialog v-model:visible="deleteDialog" modal header="Delete project" :style="{ width: 'min(400px, 92vw)' }"
       :draggable="false">
@@ -135,6 +170,11 @@ interface DashboardProject {
   enabled: boolean
   updatedAt: string
   path: string
+  visits: {
+    today: number
+    week: number[]
+    total: number
+  }
 }
 
 interface ProjectListResponse {
@@ -186,10 +226,49 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 
 const toggling = ref('')
 const actionError = ref('')
+const trafficDialog = ref(false)
+const trafficProject = ref<DashboardProject | null>(null)
 const deleteDialog = ref(false)
 const deleting = ref(false)
 const deleteError = ref('')
 const pendingDelete = ref<DashboardProject | null>(null)
+
+const trafficDayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const trafficWeek = computed(() => trafficProject.value?.visits.week ?? [])
+const trafficMax = computed(() => Math.max(1, ...trafficWeek.value))
+const trafficTicks = computed(() => {
+  const max = trafficMax.value
+  const values = [...new Set([max, Math.round(max / 2), 0])]
+  return values.map(value => ({
+    value,
+    y: 16 + 152 - (value / max) * 152
+  }))
+})
+const trafficPoints = computed(() => trafficWeek.value.map((value, index) => [
+  36 + (index / 6) * 512,
+  16 + 152 - (value / trafficMax.value) * 152
+]))
+const trafficPointsString = computed(() => trafficPoints.value.map(point => point.join(',')).join(' '))
+
+function trafficX(index: number) {
+  return 36 + (index / 6) * 512
+}
+
+function sparklinePoints(values: number[]) {
+  const width = 56
+  const height = 16
+  const max = Math.max(1, ...values)
+  return values.map((value, index) => {
+    const x = (index / Math.max(1, values.length - 1)) * width
+    const y = height - (value / max) * (height - 2) - 1
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+}
+
+function openTraffic(project: DashboardProject) {
+  trafficProject.value = project
+  trafficDialog.value = true
+}
 
 const visibilityLabel = (visibility: DashboardProject['visibility']) =>
   ({ public: 'Public', password: 'Password protected' })[visibility]
@@ -257,14 +336,6 @@ async function confirmDelete() {
   align-items: flex-end;
   justify-content: space-between;
   gap: 1.5rem;
-
-  .eyebrow {
-    margin: 0 0 0.5rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.2em;
-    color: var(--p-text-muted-color);
-  }
 
   h1 {
     margin: 0;
@@ -346,7 +417,7 @@ async function confirmDelete() {
 
 .project-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto auto auto;
   align-items: center;
   gap: 1rem;
   padding: 0.95rem 1.25rem;
@@ -411,6 +482,123 @@ async function confirmDelete() {
   .dot {
     opacity: 0.6;
   }
+}
+
+.traffic-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: auto;
+  height: 36px;
+  padding: 0 0.4rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--p-text-muted-color);
+  font-family: inherit;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--p-content-hover-background);
+    color: var(--p-text-color);
+  }
+}
+
+.traffic-today {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--p-text-color);
+}
+
+.traffic-unit {
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--p-text-muted-color);
+}
+
+.traffic-spark {
+  width: 56px;
+  height: 14px;
+  overflow: visible;
+
+  polyline {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    vector-effect: non-scaling-stroke;
+  }
+}
+
+.traffic-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.traffic-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 1.5rem;
+
+  div {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+  }
+
+  strong {
+    font-size: 1.5rem;
+  }
+
+  small {
+    color: var(--p-text-muted-color);
+    font-size: 0.75rem;
+  }
+}
+
+.traffic-project-name {
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--p-text-muted-color);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.traffic-chart {
+  width: 100%;
+  height: auto;
+
+  .grid {
+    stroke: var(--p-content-border-color);
+    stroke-width: 1;
+  }
+
+  .axis {
+    fill: var(--p-text-muted-color);
+    font-family: var(--font-code);
+    font-size: 10px;
+  }
+
+  .line {
+    fill: none;
+    stroke: var(--p-primary-color);
+    stroke-width: 2;
+  }
+
+  .dot {
+    fill: var(--p-primary-color);
+  }
+}
+
+.traffic-hint {
+  margin: 0;
+  color: var(--p-text-muted-color);
+  font-size: 0.75rem;
 }
 
 .visibility-icon {
@@ -495,7 +683,7 @@ a :deep(svg) {
   .project-row {
     grid-template-columns: minmax(0, 1fr) auto auto auto;
     grid-template-areas:
-      'name name name vis'
+      'name name traffic vis'
       'meta switch edit delete';
     gap: 0.45rem 0.75rem;
     padding: 0.95rem 1rem;
@@ -524,6 +712,18 @@ a :deep(svg) {
     grid-area: vis;
     justify-content: flex-end;
     justify-self: end;
+  }
+
+  .traffic-cell {
+    grid-area: traffic;
+    width: auto;
+    min-width: 24px;
+    height: auto;
+    padding: 0;
+  }
+
+  .traffic-spark {
+    display: none;
   }
 
   .enabled-switch {

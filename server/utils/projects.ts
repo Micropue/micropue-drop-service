@@ -230,16 +230,64 @@ export async function listProjects(event: H3Event, query: ProjectListQuery) {
     [...params, perPage, (current - 1) * perPage]
   )
 
+  const [clockRows] = await useDb().query<RowDataPacket[]>(
+    `SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS today,
+            DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL DAYOFWEEK(CURDATE()) - 1 DAY), '%Y-%m-%d') AS week_start`
+  )
+  const today = String(clockRows[0]?.today || '')
+  const weekStart = String(clockRows[0]?.week_start || '')
+  const weekDays: string[] = []
+  if (weekStart) {
+    const start = new Date(`${weekStart}T00:00:00Z`)
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(start)
+      day.setUTCDate(start.getUTCDate() + i)
+      weekDays.push(day.toISOString().slice(0, 10))
+    }
+  }
+
+  // 只保留本周的数据
+  if (weekStart) {
+    await useDb().query('DELETE FROM `project_visits` WHERE `day` < ?', [weekStart])
+  }
+
+  const [visitRows] = await useDb().query<RowDataPacket[]>(
+    `SELECT v.\`project_sid\`, DATE_FORMAT(v.\`day\`, '%Y-%m-%d') AS day, COUNT(*) AS count
+     FROM \`project_visits\` v JOIN \`projects\` p ON p.\`sid\` = v.\`project_sid\`
+     WHERE p.\`owner_bits_id\` = ? AND v.\`day\` >= ?
+     GROUP BY v.\`project_sid\`, v.\`day\``,
+    [user.bitsId, weekStart || '1970-01-01']
+  )
+  const visitsByProject = new Map<string, number[]>()
+  for (const row of visitRows) {
+    const index = weekDays.indexOf(String(row.day))
+    if (index < 0) continue
+    const sid = String(row.project_sid)
+    const week = visitsByProject.get(sid) || [0, 0, 0, 0, 0, 0, 0]
+    week[index] = Number(row.count || 0)
+    visitsByProject.set(sid, week)
+  }
+  const todayIndex = weekDays.indexOf(today)
+
   return {
-    projects: rows.map(row => ({
-      sid: String(row.sid),
-      name: String(row.name),
-      slug: String(row.slug),
-      visibility: row.visibility as ProjectVisibility,
-      enabled: Boolean(row.enabled),
-      updatedAt: (row.updated_at as Date).toISOString(),
-      path: projectPath(user, String(row.slug))
-    })),
+    projects: rows.map(row => {
+      const sid = String(row.sid)
+      const week = visitsByProject.get(sid) || [0, 0, 0, 0, 0, 0, 0]
+      return {
+        sid,
+        name: String(row.name),
+        slug: String(row.slug),
+        visibility: row.visibility as ProjectVisibility,
+        enabled: Boolean(row.enabled),
+        updatedAt: (row.updated_at as Date).toISOString(),
+        path: projectPath(user, String(row.slug)),
+        visits: {
+          today: todayIndex >= 0 ? week[todayIndex] : 0,
+          week,
+          total: week.reduce((sum, value) => sum + value, 0)
+        }
+      }
+    }),
     page: current,
     perPage,
     total,
