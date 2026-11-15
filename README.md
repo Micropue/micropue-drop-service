@@ -60,6 +60,7 @@ npm run dev
 Check that the app can reach both services:
 
 ```bash
+# Development only; production returns 404
 curl http://localhost:3678/api/health
 # {"status":"ok","mysql":"ok","redis":"ok"}
 ```
@@ -261,9 +262,7 @@ node --env-file-if-exists=.env scripts/seed-demo.mjs micropue
 
 ## Build & Deployment
 
-Production is deployed by `.github/workflows/build-upload.yml` on every push to `main`. It runs the developer contract tests, builds the app, uploads `.output/*` to `/sdb/drop.micropue.com.cn`, applies the idempotent database migration, restarts the service and waits for `/api/health`.
-
-The workflow defaults to `sudo systemctl restart drop`. To use PM2 or another process manager, add the optional Actions secret `SERVER_RESTART_COMMAND` (for example `pm2 restart drop`). Deploys are serialized so two pushes cannot replace the same directory at the same time.
+Production is deployed by `.github/workflows/build-upload.yml` on every push to `main`: it builds the app and uploads `.output/*` to `/sdb/drop.micropue.com.cn`. The workflow does not migrate or restart the process; run the migration bundle before restarting the service manually. The app also applies the same idempotent schema on startup.
 
 ```bash
 # Production build (outputs to .output/, including server/migrate.mjs)
@@ -293,7 +292,7 @@ server/
   api/projects/  index.get.ts, index.post.ts, [sid].get.ts, [sid].put.ts, [sid].patch.ts, [sid].delete.ts
   api/developer/ keys/ (create, list, revoke API keys)
   api/unlock/    [sid].post.ts (password unlock)
-  api/           health.get.ts, github/star.get.ts
+  api/           health.get.ts (development only), github/star.get.ts
   routes/v1/     public developer API + OpenAPI document
   assets/        openapi.v1.json
   plugins/       db-init.ts (startup schema check)
