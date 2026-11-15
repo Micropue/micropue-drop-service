@@ -26,6 +26,12 @@
               <span>Dashboard</span>
             </NuxtLink>
           </Button>
+          <Button as-child v-slot="slotProps" severity="secondary">
+            <NuxtLink to="/developers" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
+              <Code aria-hidden="true" />
+              <span>Developers</span>
+            </NuxtLink>
+          </Button>
           <Button as-child v-slot="slotProps">
             <NuxtLink to="/new" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
               <Plus aria-hidden="true" />
@@ -33,12 +39,20 @@
             </NuxtLink>
           </Button>
         </template>
-        <Button v-else as-child v-slot="slotProps">
-          <NuxtLink to="/sign" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
-            <SignIn aria-hidden="true" />
-            <span>Log in with BITS</span>
-          </NuxtLink>
-        </Button>
+        <template v-else>
+          <Button as-child v-slot="slotProps">
+            <NuxtLink to="/sign" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
+              <SignIn aria-hidden="true" />
+              <span>Log in with BITS</span>
+            </NuxtLink>
+          </Button>
+          <Button as-child v-slot="slotProps" severity="secondary">
+            <NuxtLink to="/developers" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
+              <Code aria-hidden="true" />
+              <span>Developers</span>
+            </NuxtLink>
+          </Button>
+        </template>
       </div>
     </section>
 
@@ -57,6 +71,7 @@ import Button from 'primevue/button'
 import SignIn from '@primeicons/vue/sign-in'
 import Plus from '@primeicons/vue/plus'
 import ThLarge from '@primeicons/vue/th-large'
+import Code from '@primeicons/vue/code'
 
 useHead({ title: 'Free Static Site Hosting' })
 

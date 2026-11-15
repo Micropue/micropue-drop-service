@@ -44,10 +44,6 @@
         <ThLarge aria-hidden="true" />
         <span>Dashboard</span>
       </NuxtLink>
-      <NuxtLink to="/developers">
-        <Code aria-hidden="true" />
-        <span>Developers</span>
-      </NuxtLink>
     </div>
   </div>
 </template>
@@ -57,7 +53,6 @@ import Button from 'primevue/button'
 import SignOut from '@primeicons/vue/sign-out'
 import ExternalLink from '@primeicons/vue/external-link'
 import ThLarge from '@primeicons/vue/th-large'
-import Code from '@primeicons/vue/code'
 
 useHead({ title: 'Account' })
 
