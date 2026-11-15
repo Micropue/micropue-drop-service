@@ -4,11 +4,11 @@ import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/prom
 import { getSessionUser, type DropUser } from './auth'
 import { useDb } from './db'
 
-const MAX_FILES = 20
-const MAX_FOLDERS = 50
-const MAX_FILE_BYTES = 512 * 1024
-const MAX_TOTAL_BYTES = 1024 * 1024
-const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/
+export const MAX_FILES = 20
+export const MAX_FOLDERS = 50
+export const MAX_FILE_BYTES = 512 * 1024
+export const MAX_TOTAL_BYTES = 1024 * 1024
+export const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/
 const FILE_RE = /^[\p{L}\p{N}][\p{L}\p{N}._-]{0,79}\.(html|css|js)$/u
 const PATH_SEGMENT_RE = /^[\p{L}\p{N}._-]+$/u
 
@@ -33,6 +33,25 @@ export interface ProjectInput {
 interface ProjectRow extends RowDataPacket {
   sid: string
   password_hash: string | null
+  revision: number
+}
+
+export interface ProjectMutationOptions {
+  source?: 'web' | 'api'
+  apiKeyId?: string | null
+  message?: string | null
+  enabled?: boolean
+}
+
+export interface DeploymentRecord {
+  id: string
+  revision: number
+  status: 'live'
+  fileCount: number
+  totalBytes: number
+  message: string | null
+  source: 'web' | 'api'
+  createdAt: string
 }
 
 function fail(message: string): never {
@@ -158,13 +177,13 @@ export function parseProjectInput(body: unknown): ProjectInput {
   return { name, slug, visibility, password: password || undefined, folders: mergeFolders(folders, files), files }
 }
 
-function hashPassword(password: string) {
+export function hashPassword(password: string) {
   const salt = randomBytes(16).toString('hex')
   const hash = scryptSync(password, salt, 64).toString('hex')
   return `scrypt$${salt}$${hash}`
 }
 
-function projectPath(user: DropUser, slug: string) {
+export function projectPath(user: DropUser, slug: string) {
   return `/${encodeURIComponent(user.username)}/${encodeURIComponent(slug)}`
 }
 
@@ -175,12 +194,48 @@ function projectError(err: unknown) {
   return err instanceof Error ? err : new Error(String(err))
 }
 
-async function insertFiles(conn: PoolConnection, projectSid: string, files: ProjectFileInput[]) {
+export async function insertFiles(conn: PoolConnection, projectSid: string, files: ProjectFileInput[]) {
   for (const [index, file] of files.entries()) {
     await conn.query(
       'INSERT INTO `project_files` (`sid`, `project_sid`, `name`, `language`, `content`, `sort_order`) VALUES (?, ?, ?, ?, ?, ?)',
       [randomUUID(), projectSid, file.name, file.language, file.content, index]
     )
+  }
+}
+
+export function fileBytes(files: ProjectFileInput[]) {
+  return files.reduce((sum, file) => sum + Buffer.byteLength(file.content, 'utf8'), 0)
+}
+
+export async function insertDeployment(
+  conn: PoolConnection,
+  input: {
+    projectSid: string
+    revision: number
+    source: 'web' | 'api'
+    apiKeyId?: string | null
+    message?: string | null
+    fileCount: number
+    totalBytes: number
+  }
+): Promise<DeploymentRecord> {
+  const id = randomUUID()
+  const message = input.message?.trim() ? input.message.trim().slice(0, 200) : null
+  await conn.query(
+    `INSERT INTO \`project_deployments\`
+       (\`id\`, \`project_sid\`, \`revision\`, \`source\`, \`api_key_id\`, \`message\`, \`file_count\`, \`total_bytes\`, \`status\`)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'live')`,
+    [id, input.projectSid, input.revision, input.source, input.apiKeyId || null, message, input.fileCount, input.totalBytes]
+  )
+  return {
+    id,
+    revision: input.revision,
+    status: 'live',
+    fileCount: input.fileCount,
+    totalBytes: input.totalBytes,
+    message,
+    source: input.source,
+    createdAt: new Date().toISOString()
   }
 }
 
@@ -339,12 +394,12 @@ export async function setProjectEnabled(event: H3Event, sid: string, enabled: un
 
   const user = await requireUser(event)
   await useDb().query(
-    'UPDATE `projects` SET `enabled` = ?, `updated_at` = NOW() WHERE `sid` = ? AND `owner_bits_id` = ?',
+    'UPDATE `projects` SET `enabled` = ?, `revision` = `revision` + 1, `updated_at` = NOW() WHERE `sid` = ? AND `owner_bits_id` = ?',
     [enabled ? 1 : 0, sid, user.bitsId]
   )
 
   const [rows] = await useDb().query<RowDataPacket[]>(
-    'SELECT `slug` FROM `projects` WHERE `sid` = ? AND `owner_bits_id` = ? LIMIT 1',
+    'SELECT `slug`, `revision` FROM `projects` WHERE `sid` = ? AND `owner_bits_id` = ? LIMIT 1',
     [sid, user.bitsId]
   )
   const row = rows[0]
@@ -353,12 +408,12 @@ export async function setProjectEnabled(event: H3Event, sid: string, enabled: un
   return {
     sid,
     enabled,
+    revision: Number(row.revision),
     path: projectPath(user, String(row.slug))
   }
 }
 
-export async function deleteProject(event: H3Event, sid: string) {
-  const user = await requireUser(event)
+export async function deleteProjectForUser(user: DropUser, sid: string) {
   const [result] = await useDb().query<ResultSetHeader>(
     'DELETE FROM `projects` WHERE `sid` = ? AND `owner_bits_id` = ?',
     [sid, user.bitsId]
@@ -367,8 +422,16 @@ export async function deleteProject(event: H3Event, sid: string) {
   return { sid }
 }
 
-export async function createProject(event: H3Event, input: ProjectInput) {
+export async function deleteProject(event: H3Event, sid: string) {
   const user = await requireUser(event)
+  return deleteProjectForUser(user, sid)
+}
+
+export async function createProjectForUser(
+  user: DropUser,
+  input: ProjectInput,
+  options: ProjectMutationOptions = {}
+) {
   requireUsername(user)
 
   const [countRows] = await useDb().query<RowDataPacket[]>(
@@ -384,15 +447,26 @@ export async function createProject(event: H3Event, input: ProjectInput) {
     : null
 
   const sid = randomUUID()
+  const enabled = options.enabled ?? true
   const conn = await useDb().getConnection()
+  let deployment: DeploymentRecord
 
   try {
     await conn.beginTransaction()
     await conn.query(
-      'INSERT INTO `projects` (`sid`, `owner_bits_id`, `slug`, `name`, `visibility`, `password_hash`, `folders`) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [sid, user.bitsId, input.slug, input.name, input.visibility, passwordHash, JSON.stringify(input.folders)]
+      'INSERT INTO `projects` (`sid`, `owner_bits_id`, `slug`, `name`, `visibility`, `enabled`, `revision`, `password_hash`, `folders`) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)',
+      [sid, user.bitsId, input.slug, input.name, input.visibility, enabled ? 1 : 0, passwordHash, JSON.stringify(input.folders)]
     )
     await insertFiles(conn, sid, input.files)
+    deployment = await insertDeployment(conn, {
+      projectSid: sid,
+      revision: 1,
+      source: options.source || 'web',
+      apiKeyId: options.apiKeyId,
+      message: options.message,
+      fileCount: input.files.length,
+      totalBytes: fileBytes(input.files)
+    })
     await conn.commit()
   } catch (err) {
     await conn.rollback()
@@ -406,9 +480,17 @@ export async function createProject(event: H3Event, input: ProjectInput) {
     name: input.name,
     slug: input.slug,
     visibility: input.visibility,
+    enabled,
+    revision: 1,
     folders: input.folders,
+    deployment,
     path: projectPath(user, input.slug)
   }
+}
+
+export async function createProject(event: H3Event, input: ProjectInput) {
+  const user = await requireUser(event)
+  return createProjectForUser(user, input)
 }
 
 export async function updateProject(event: H3Event, sid: string, input: ProjectInput) {
@@ -416,12 +498,14 @@ export async function updateProject(event: H3Event, sid: string, input: ProjectI
   requireUsername(user)
 
   const conn = await useDb().getConnection()
+  let revision = 1
+  let deployment: DeploymentRecord
 
   try {
     await conn.beginTransaction()
 
     const [rows] = await conn.query<ProjectRow[]>(
-      'SELECT `sid`, `password_hash` FROM `projects` WHERE `sid` = ? AND `owner_bits_id` = ? LIMIT 1',
+      'SELECT `sid`, `password_hash`, `revision` FROM `projects` WHERE `sid` = ? AND `owner_bits_id` = ? LIMIT 1 FOR UPDATE',
       [sid, user.bitsId]
     )
     const existing = rows[0]
@@ -434,11 +518,23 @@ export async function updateProject(event: H3Event, sid: string, input: ProjectI
     }
 
     await conn.query(
-      'UPDATE `projects` SET `slug` = ?, `name` = ?, `visibility` = ?, `password_hash` = ?, `folders` = ?, `updated_at` = NOW() WHERE `sid` = ? AND `owner_bits_id` = ?',
+      'UPDATE `projects` SET `slug` = ?, `name` = ?, `visibility` = ?, `password_hash` = ?, `folders` = ?, `revision` = `revision` + 1, `updated_at` = NOW() WHERE `sid` = ? AND `owner_bits_id` = ?',
       [input.slug, input.name, input.visibility, passwordHash, JSON.stringify(input.folders), sid, user.bitsId]
     )
     await conn.query('DELETE FROM `project_files` WHERE `project_sid` = ?', [sid])
     await insertFiles(conn, sid, input.files)
+    const [revisionRows] = await conn.query<RowDataPacket[]>(
+      'SELECT `revision` FROM `projects` WHERE `sid` = ? LIMIT 1',
+      [sid]
+    )
+    revision = Number(revisionRows[0]?.revision || existing.revision + 1)
+    deployment = await insertDeployment(conn, {
+      projectSid: sid,
+      revision,
+      source: 'web',
+      fileCount: input.files.length,
+      totalBytes: fileBytes(input.files)
+    })
 
     await conn.commit()
   } catch (err) {
@@ -453,7 +549,9 @@ export async function updateProject(event: H3Event, sid: string, input: ProjectI
     name: input.name,
     slug: input.slug,
     visibility: input.visibility,
+    revision,
     folders: input.folders,
+    deployment,
     path: projectPath(user, input.slug)
   }
 }

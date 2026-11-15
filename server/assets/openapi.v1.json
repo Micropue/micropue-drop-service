@@ -1,0 +1,1507 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "DROP API",
+    "version": "1.0.0",
+    "summary": "Deploy static sites to DROP from code, CI, MCP and Skills.",
+    "description": "DROP API v1. A deployment is an atomic snapshot replacement: when the request\nsucceeds, the project is immediately readable at its public content URL.\n\nAuthentication uses a personal API key:\n\n    Authorization: Bearer drop_sk_...\n\nAPI keys are created in the Developer Portal. Session cookies are not accepted\non /v1 endpoints.\n",
+    "license": {
+      "name": "Apache License 2.0",
+      "identifier": "Apache-2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://drop.micropue.com.cn/v1",
+      "description": "Production"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Meta",
+      "description": "Public discovery endpoints."
+    },
+    {
+      "name": "Account",
+      "description": "Current account, key and usage."
+    },
+    {
+      "name": "Projects",
+      "description": "Static site projects."
+    },
+    {
+      "name": "Deployments",
+      "description": "Atomic content publishing."
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "Meta"
+        ],
+        "operationId": "getApiInfo",
+        "summary": "Get API information",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "API version and documentation links.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": [
+          "Meta"
+        ],
+        "operationId": "getOpenApiDocument",
+        "summary": "Get the OpenAPI document",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 document.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "getMe",
+        "summary": "Get the current account and API key",
+        "description": "Any valid API key can call this endpoint. It is useful as a connectivity\ncheck for MCP servers and Skills.\n",
+        "x-drop-scopes": [],
+        "responses": {
+          "200": {
+            "description": "Current account, key metadata and limits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/usage": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "getUsage",
+        "summary": "Get account usage",
+        "x-drop-scopes": [
+          "projects:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "Project and deployment usage.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Usage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/projects": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "listProjects",
+        "summary": "List projects",
+        "x-drop-scopes": [
+          "projects:read"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PerPage"
+          },
+          {
+            "$ref": "#/components/parameters/Query"
+          },
+          {
+            "$ref": "#/components/parameters/Sort"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated project summaries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "createProject",
+        "summary": "Create a project and publish its first deployment",
+        "description": "Creates the project and its initial file snapshot in one transaction.\nThe returned public URL is live immediately when the request succeeds.\n\nRequires both projects:write and deployments:write.\n",
+        "x-drop-scopes": [
+          "projects:write",
+          "deployments:write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreateRequest"
+              },
+              "examples": {
+                "minimal": {
+                  "summary": "A one-page site",
+                  "value": {
+                    "name": "Hello DROP",
+                    "slug": "hello-drop",
+                    "visibility": "public",
+                    "files": [
+                      {
+                        "path": "index.html",
+                        "content": "<!doctype html><h1>Hello DROP</h1>"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Project created and first deployment is live.",
+            "headers": {
+              "Location": {
+                "description": "Canonical API path of the new project.",
+                "schema": {
+                  "type": "string",
+                  "example": "/v1/projects/0f5b7e3a-7b58-4b9e-8e52-8f9b1c2d3e4f"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDeploymentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/projects/{projectId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ProjectId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "getProject",
+        "summary": "Get a project with its files",
+        "x-drop-scopes": [
+          "projects:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "Full project including file contents.",
+            "headers": {
+              "ETag": {
+                "description": "Current revision, for example \"rev-3\".",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "updateProject",
+        "summary": "Update project metadata",
+        "description": "Changes name, slug, visibility, password or enabled state. Files are not\nchanged by this endpoint; use deployProject for content.\n\nChanging the slug changes the public URL immediately. Old URLs are not\nredirected in v1.\n",
+        "x-drop-scopes": [
+          "projects:write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectPatchRequest"
+              },
+              "examples": {
+                "disable": {
+                  "summary": "Take a site offline without deleting it",
+                  "value": {
+                    "enabled": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated project.",
+            "headers": {
+              "ETag": {
+                "description": "New revision, for example \"rev-4\".",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "deleteProject",
+        "summary": "Delete a project",
+        "description": "Permanently deletes the project, its files and deployment records. This\naction cannot be undone.\n",
+        "x-drop-scopes": [
+          "projects:delete"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Project deleted."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/projects/{projectId}/deploy": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ProjectId"
+        }
+      ],
+      "post": {
+        "tags": [
+          "Deployments"
+        ],
+        "operationId": "deployProject",
+        "summary": "Deploy a complete file snapshot",
+        "description": "Atomically replaces the project's files. The new snapshot is live as soon\nas the request returns 200. A failed validation or transaction leaves the\nprevious snapshot untouched.\n\nThis endpoint does not change project metadata or visibility.\n",
+        "x-drop-scopes": [
+          "deployments:write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeployRequest"
+              },
+              "examples": {
+                "update": {
+                  "summary": "Replace the home page",
+                  "value": {
+                    "files": [
+                      {
+                        "path": "index.html",
+                        "content": "<!doctype html><h1>Version 2</h1>"
+                      }
+                    ],
+                    "message": "update hero"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Deployment is live.",
+            "headers": {
+              "ETag": {
+                "description": "New revision, for example \"rev-2\".",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDeploymentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/projects/{projectId}/deployments": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ProjectId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Deployments"
+        ],
+        "operationId": "listDeployments",
+        "summary": "List recent deployments",
+        "description": "Returns deployment metadata in reverse chronological order. v1 stores no\nfile snapshots and therefore cannot roll back to a previous deployment.\nRecords are retained for 90 days or the latest 50 entries, whichever is\nshorter.\n",
+        "x-drop-scopes": [
+          "projects:read"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PerPage"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated deployment records.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "drop_sk",
+        "description": "Personal API key created in the Developer Portal. Send it as\n`Authorization: Bearer drop_sk_...`. Session cookies are not accepted.\n"
+      }
+    },
+    "parameters": {
+      "ProjectId": {
+        "name": "projectId",
+        "in": "path",
+        "required": true,
+        "description": "Project UUID from the list or create response.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "description": "One-based page number.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        }
+      },
+      "PerPage": {
+        "name": "perPage",
+        "in": "query",
+        "required": false,
+        "description": "Number of items per page.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      },
+      "Query": {
+        "name": "q",
+        "in": "query",
+        "required": false,
+        "description": "Search project name or slug.",
+        "schema": {
+          "type": "string",
+          "maxLength": 80
+        }
+      },
+      "Sort": {
+        "name": "sort",
+        "in": "query",
+        "required": false,
+        "description": "Project ordering.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "updated_desc",
+            "created_desc",
+            "name_asc"
+          ],
+          "default": "updated_desc"
+        }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "description": "Client-generated unique value. Reusing it with the same request body\nreturns the first response for 24 hours. Reusing it with a different body\nreturns 409 idempotency_conflict.\n",
+        "schema": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 200
+        }
+      },
+      "IfMatch": {
+        "name": "If-Match",
+        "in": "header",
+        "required": false,
+        "description": "Optional optimistic concurrency check. Use the ETag value from a previous\nread, for example \"rev-3\". A stale value returns 412 revision_conflict.\n",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Malformed request.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing, invalid, expired or revoked API key.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The API key lacks the required scope.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource does not exist or is not owned by this account.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Slug conflict, project limit or idempotency conflict.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "PreconditionFailed": {
+        "description": "The supplied If-Match revision is stale.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "Request body or project content exceeds a hard limit.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "UnprocessableEntity": {
+        "description": "One or more fields failed validation.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "Rate limit exceeded.",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds until the request may be retried.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          "RateLimit-Limit": {
+            "description": "Request limit in the current window.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          "RateLimit-Remaining": {
+            "description": "Requests remaining in the current window.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          "RateLimit-Reset": {
+            "description": "Seconds until the current window resets.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "A required dependency is unavailable.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ApiInfo": {
+        "type": "object",
+        "required": [
+          "name",
+          "version",
+          "docs",
+          "openapi"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "const": "DROP API"
+          },
+          "version": {
+            "type": "string",
+            "const": "v1"
+          },
+          "docs": {
+            "type": "string",
+            "format": "uri"
+          },
+          "openapi": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "Account": {
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "nickname",
+          "avatarUrl",
+          "profileUrl"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "profileUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "KeyInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "scopes",
+          "expiresAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "prefix": {
+            "type": "string",
+            "example": "drop_sk_7f3a"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Scope"
+            }
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "null means the key never expires."
+          },
+          "lastUsedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "Scope": {
+        "type": "string",
+        "enum": [
+          "projects:read",
+          "projects:write",
+          "deployments:write",
+          "projects:delete"
+        ]
+      },
+      "Limits": {
+        "type": "object",
+        "required": [
+          "projects",
+          "filesPerProject",
+          "fileBytes",
+          "projectBytes",
+          "foldersPerProject"
+        ],
+        "properties": {
+          "projects": {
+            "type": "integer",
+            "example": 100
+          },
+          "filesPerProject": {
+            "type": "integer",
+            "example": 20
+          },
+          "fileBytes": {
+            "type": "integer",
+            "example": 524288
+          },
+          "projectBytes": {
+            "type": "integer",
+            "example": 1048576
+          },
+          "foldersPerProject": {
+            "type": "integer",
+            "example": 50
+          }
+        }
+      },
+      "MeResponse": {
+        "type": "object",
+        "required": [
+          "account",
+          "key",
+          "limits"
+        ],
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/Account"
+          },
+          "key": {
+            "$ref": "#/components/schemas/KeyInfo"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          }
+        }
+      },
+      "Usage": {
+        "type": "object",
+        "required": [
+          "projects",
+          "storageBytes",
+          "deploymentsThisMonth"
+        ],
+        "properties": {
+          "projects": {
+            "type": "object",
+            "required": [
+              "used",
+              "limit"
+            ],
+            "properties": {
+              "used": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "storageBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deploymentsThisMonth": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lastDeploymentAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "Visibility": {
+        "type": "string",
+        "enum": [
+          "public",
+          "password"
+        ]
+      },
+      "FileLanguage": {
+        "type": "string",
+        "enum": [
+          "html",
+          "css",
+          "js"
+        ]
+      },
+      "FileInput": {
+        "type": "object",
+        "required": [
+          "path",
+          "content"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Project-relative path ending in .html, .css or .js. Must not start or\nend with a slash and must not contain . or .. segments.\n",
+            "maxLength": 120
+          },
+          "content": {
+            "type": "string",
+            "description": "UTF-8 file content."
+          }
+        }
+      },
+      "File": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FileInput"
+          },
+          {
+            "type": "object",
+            "required": [
+              "language",
+              "bytes"
+            ],
+            "properties": {
+              "language": {
+                "$ref": "#/components/schemas/FileLanguage"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        ]
+      },
+      "ProjectSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "path",
+          "url",
+          "visibility",
+          "enabled",
+          "revision",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$"
+          },
+          "path": {
+            "type": "string",
+            "example": "/micropue/personal-site/"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/Visibility"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Project": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProjectSummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "hasPassword",
+              "folders",
+              "files",
+              "createdAt",
+              "lastDeployedAt"
+            ],
+            "properties": {
+              "hasPassword": {
+                "type": "boolean"
+              },
+              "folders": {
+                "type": "array",
+                "maxItems": 50,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "files": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 20,
+                "items": {
+                  "$ref": "#/components/schemas/File"
+                }
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "lastDeployedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
+          }
+        ]
+      },
+      "DeploymentStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "building",
+          "live",
+          "failed"
+        ],
+        "description": "v1 always returns live."
+      },
+      "Deployment": {
+        "type": "object",
+        "required": [
+          "id",
+          "revision",
+          "status",
+          "url",
+          "fileCount",
+          "totalBytes",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "$ref": "#/components/schemas/DeploymentStatus"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "fileCount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "totalBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "web",
+              "api"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProjectCreateRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "slug",
+          "visibility",
+          "files"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/Visibility"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 6,
+            "maxLength": 128,
+            "writeOnly": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "folders": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string"
+            }
+          },
+          "files": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/FileInput"
+            }
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      },
+      "ProjectPatchRequest": {
+        "type": "object",
+        "minProperties": 1,
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/Visibility"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 6,
+            "maxLength": 128,
+            "writeOnly": true
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DeployRequest": {
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "folders": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string"
+            }
+          },
+          "files": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/FileInput"
+            }
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "required": [
+          "page",
+          "perPage",
+          "total",
+          "pages"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "perPage": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pages": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "ProjectList": {
+        "type": "object",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectSummary"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        }
+      },
+      "DeploymentList": {
+        "type": "object",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Deployment"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        }
+      },
+      "ProjectDeploymentResponse": {
+        "type": "object",
+        "required": [
+          "project",
+          "deployment"
+        ],
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/Project"
+          },
+          "deployment": {
+            "$ref": "#/components/schemas/Deployment"
+          }
+        }
+      },
+      "ValidationIssue": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "detail",
+          "requestId"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationIssue"
+            }
+          }
+        }
+      }
+    }
+  }
+}

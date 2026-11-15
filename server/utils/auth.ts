@@ -95,7 +95,7 @@ export async function createSession(event: H3Event, bitsId: string) {
   })
 }
 
-export function clearSession(event: H3Event) {
+export function clearDropSession(event: H3Event) {
   deleteCookie(event, SESSION_COOKIE, { path: '/' })
 
   // 兼容旧版本：会话 Cookie 曾经写在父域（如 .micropue.com.cn），只清 host-only 清不掉
@@ -126,6 +126,10 @@ export async function getSessionUser(event: H3Event): Promise<DropUser | null> {
   }
   if (!bitsId) return null
 
+  return getUserByBitsId(bitsId)
+}
+
+export async function getUserByBitsId(bitsId: string): Promise<DropUser | null> {
   const [rows] = await useDb().query<AccountRow[]>(
     'SELECT `bits_id`, `email`, `username`, `nickname`, `avatar_url`, `profile`, `created_at`, `last_login_at`, `privacy_accepted_at` FROM `accounts` WHERE `bits_id` = ? LIMIT 1',
     [bitsId]

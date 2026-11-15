@@ -3,11 +3,13 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "nuxt build",
+    "build": "nuxt build && node scripts/build-migrate.mjs",
     "start": "node --env-file-if-exists=.env --env-file-if-exists=.env.production .output/server/index.mjs",
     "dev": "nuxt dev --host",
+    "db:migrate": "node --env-file-if-exists=.env --env-file-if-exists=.env.production --experimental-strip-types scripts/migrate.mjs",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
+    "test:developer": "node scripts/developer-platform.test.mjs",
     "test:folder-import": "node --experimental-strip-types scripts/folder-import.test.mjs",
     "postinstall": "nuxt prepare"
   },

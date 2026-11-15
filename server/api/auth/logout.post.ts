@@ -1,6 +1,6 @@
-import { clearSession } from '../../utils/auth'
+import { clearDropSession } from '../../utils/auth'
 
 export default defineEventHandler(event => {
-  clearSession(event)
+  clearDropSession(event)
   return { ok: true }
 })

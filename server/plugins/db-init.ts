@@ -1,4 +1,5 @@
-import { ensureSchema } from '../utils/db'
+import { useDb } from '../utils/db'
+import { ensureSchema } from '../utils/schema'
 
 const MAX_ATTEMPTS = 3
 const RETRY_DELAY_MS = 1000
@@ -6,7 +7,7 @@ const RETRY_DELAY_MS = 1000
 export default defineNitroPlugin(async () => {
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      await ensureSchema()
+      await ensureSchema(useDb())
       console.log('[db] 数据表已就绪')
       return
     } catch (err) {

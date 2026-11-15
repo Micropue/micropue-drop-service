@@ -86,6 +86,7 @@ All dynamic configuration lives in `.env` (see `.env.example`):
 | Content domain | `NUXT_CONTENT_HOST`, `NUXT_PUBLIC_CONTENT_URL` |
 | BITS OAuth | `BITS_OAUTH_ORIGIN`, `BITS_OAUTH_CLIENT_ID`, `BITS_OAUTH_CLIENT_SECRET`, `BITS_OAUTH_REDIRECT_URI` |
 | Session | `AUTH_SECRET` |
+| Developer API | `API_KEY_PEPPER` (optional; falls back to `AUTH_SECRET`) |
 | Deployment test App | `BITS_STAGING_CLIENT_ID`, `BITS_STAGING_CLIENT_SECRET`, `BITS_STAGING_REDIRECT_URI` |
 
 Secrets must never be committed to the repository.
@@ -142,6 +143,33 @@ The creator at `/new` matches the site navigation width (`max-width: 1300px`): t
   - `Edit` reopens the project in the creator (`/new?edit=<sid>`); `Delete` asks for confirmation and removes the project with its files.
 - On screens ≤900px the explorer becomes a drawer.
 - The explorer uses [he-tree](https://hetree.phphe.com/) (`@he-tree/vue`) with a custom Vue UI; file/folder icons come from [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme) (MIT).
+
+## Developer Platform
+
+- Portal: `/developers` (overview), `/developers/docs` (reference), `/developers/keys` (personal API keys).
+- Public API: `https://drop.micropue.com.cn/v1`; OpenAPI at `/v1/openapi.json`.
+- Auth: `Authorization: Bearer drop_sk_...`; keys have `projects:read`, `projects:write`, `deployments:write` and `projects:delete` scopes.
+- Deploys are atomic snapshots written straight to MySQL. A successful `POST /v1/projects/{id}/deploy` is immediately live on the content domain.
+- v1 supports HTML/CSS/JS only. OAuth for remote MCP is planned for v2; local MCP servers and Skills can use a personal key now.
+- API keys can expire in 30 / 90 / 180 / 365 days, or never. Full secrets are shown once.
+
+Database changes are additive and idempotent:
+
+```bash
+# Run the same migration used by app startup
+npm run db:migrate
+
+# Validate the OpenAPI contract, key format and additive schema guard
+npm run test:developer
+```
+
+The build also emits `.output/server/migrate.mjs`, so production can run the migration bundle without the source tree:
+
+```bash
+node --env-file-if-exists=/sdb/drop.micropue.com.cn.env server/migrate.mjs
+```
+
+New tables are `api_keys`, `project_deployments` and `schema_migrations`; existing `projects` only gains a `revision` column. No table is dropped or rebuilt.
 
 ## Hosting
 
@@ -233,10 +261,12 @@ node --env-file-if-exists=.env scripts/seed-demo.mjs micropue
 
 ## Build & Deployment
 
-Production is deployed by `.github/workflows/build-upload.yml` on every push to `main`: it builds the app and uploads `.output/*` to `/sdb/drop.micropue.com.cn` on the server.
+Production is deployed by `.github/workflows/build-upload.yml` on every push to `main`. It runs the developer contract tests, builds the app, uploads `.output/*` to `/sdb/drop.micropue.com.cn`, applies the idempotent database migration, restarts the service and waits for `/api/health`.
+
+The workflow defaults to `sudo systemctl restart drop`. To use PM2 or another process manager, add the optional Actions secret `SERVER_RESTART_COMMAND` (for example `pm2 restart drop`). Deploys are serialized so two pushes cannot replace the same directory at the same time.
 
 ```bash
-# Production build (outputs to .output/)
+# Production build (outputs to .output/, including server/migrate.mjs)
 npm run build
 
 # Run the production server (loads .env; the built output alone does not)
@@ -261,17 +291,20 @@ public/          favicon.ico, robots.txt, file-icons/ (Material Icon Theme, MIT)
 server/
   api/auth/      bits.get.ts, bits/callback.get.ts, me.get.ts, logout.post.ts
   api/projects/  index.get.ts, index.post.ts, [sid].get.ts, [sid].put.ts, [sid].patch.ts, [sid].delete.ts
+  api/developer/ keys/ (create, list, revoke API keys)
   api/unlock/    [sid].post.ts (password unlock)
   api/           health.get.ts, github/star.get.ts
-  plugins/       db-init.ts (accounts / projects / project_files tables)
+  routes/v1/     public developer API + OpenAPI document
+  assets/        openapi.v1.json
+  plugins/       db-init.ts (startup schema check)
   middleware/    content.ts (content-domain routing)
   routes/        sitemap.xml.ts
-  utils/         auth.ts, db.ts, projects.ts, site.ts, redis.ts
+  utils/         auth.ts, db.ts, projects.ts, site.ts, redis.ts, schema.ts, api*.ts
 docker-compose.yml
 nuxt.config.ts
 .env.example
 .github/workflows/  build-upload.yml (build + scp to /sdb/drop.micropue.com.cn)
-scripts/            seed-demo.mjs
+scripts/            migrate.mjs, build-migrate.mjs, developer-platform.test.mjs, seed-demo.mjs
 ```
 
 ## License
