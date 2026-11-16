@@ -6,10 +6,14 @@
         <h1>API keys</h1>
         <p class="sub">Keys authenticate scripts, CI jobs, MCP servers and Skills against the DROP API.</p>
       </div>
-      <Button @click="openCreate">
-        <Plus aria-hidden="true" />
-        <span>Create key</span>
-      </Button>
+      <div class="head-actions">
+        <span class="quota">{{ activeKeyCount }} / {{ maxActiveKeys }} active</span>
+        <Button :disabled="keyLimitReached" :title="keyLimitReached ? 'Revoke an active key before creating another.' : undefined"
+          @click="openCreate">
+          <Plus aria-hidden="true" />
+          <span>Create key</span>
+        </Button>
+      </div>
     </header>
 
     <p v-if="error" class="error" role="alert">{{ error }}</p>
@@ -20,12 +24,12 @@
       <Button @click="openCreate">Create your first key</Button>
     </section>
 
-    <section v-else class="key-list" aria-label="API keys">
-      <article v-for="key in keys" :key="key.id" class="key-card">
+    <ul v-else class="key-list" aria-label="API keys">
+      <li v-for="key in keys" :key="key.id" class="key-row">
         <div class="key-main">
           <div class="key-title">
-            <h2>{{ key.name }}</h2>
-            <span class="status" :class="`status--${key.status}`">{{ key.status }}</span>
+            <span class="key-name">{{ key.name }}</span>
+            <span v-if="key.status === 'expired'" class="status status--expired">expired</span>
           </div>
           <code class="prefix">{{ key.prefix }}…</code>
           <div class="scopes">
@@ -37,12 +41,12 @@
           <div><dt>Last used</dt><dd>{{ key.lastUsedAt ? formatDate(key.lastUsedAt) : 'Never' }}</dd></div>
           <div><dt>Expires</dt><dd>{{ key.expiresAt ? formatDate(key.expiresAt) : 'Never' }}</dd></div>
         </dl>
-        <Button v-if="key.status === 'active'" text severity="danger" @click="askRevoke(key)">
+        <Button v-if="key.status === 'active'" class="revoke-button" text rounded
+          :aria-label="`Revoke ${key.name}`" title="Revoke key" @click="askRevoke(key)">
           <Trash aria-hidden="true" />
-          <span>Revoke</span>
         </Button>
-      </article>
-    </section>
+      </li>
+    </ul>
 
     <Dialog v-model:visible="createOpen" modal header="Create API key" :style="{ width: 'min(520px, 92vw)' }"
       :draggable="false">
@@ -89,13 +93,15 @@
       :draggable="false" :closable="false">
       <div class="secret">
         <p>This is the only time the full key will be shown. Copy it now.</p>
-        <code class="secret-value">{{ newToken }}</code>
-        <div class="secret-actions">
-          <Button severity="secondary" @click="copyToken">
-            <Copy aria-hidden="true" />
-            <span>Copy key</span>
-          </Button>
-          <span v-if="copied" class="copied">Copied</span>
+        <div class="secret-row">
+          <code class="secret-value">{{ newToken }}</code>
+          <div class="secret-actions">
+            <Button severity="secondary" @click="copyToken">
+              <Copy aria-hidden="true" />
+              <span>Copy key</span>
+            </Button>
+            <span v-if="copied" class="copied" aria-live="polite">Copied</span>
+          </div>
         </div>
         <p class="hint">Do not put this key in a browser bundle or commit it to git.</p>
       </div>
@@ -141,10 +147,13 @@ interface ApiKey {
 const { user } = useAuthUser()
 if (!user.value) await navigateTo('/sign')
 
-const { data, pending, refresh } = await useFetch<{ keys: ApiKey[] }>('/api/developer/keys')
+const { data, pending, refresh } = await useFetch<{ keys: ApiKey[]; maxActiveKeys: number }>('/api/developer/keys')
 const error = ref('')
 
 const keys = computed(() => data.value?.keys ?? [])
+const maxActiveKeys = computed(() => data.value?.maxActiveKeys ?? 100)
+const activeKeyCount = computed(() => keys.value.filter(key => key.status === 'active').length)
+const keyLimitReached = computed(() => activeKeyCount.value >= maxActiveKeys.value)
 
 const allScopes = [
   { value: 'projects:read', label: 'Read projects', description: 'List projects and read files and deployments.' },
@@ -183,6 +192,11 @@ function applyPreset(value: 'read' | 'deploy' | 'full') {
 }
 
 function openCreate() {
+  if (keyLimitReached.value) {
+    error.value = `You can have at most ${maxActiveKeys.value} active API keys. Revoke one before creating another.`
+    return
+  }
+  error.value = ''
   name.value = ''
   expiry.value = 90
   selectedScopes.value = ['projects:read', 'projects:write', 'deployments:write']
@@ -259,29 +273,42 @@ function formatDate(value: string) {
 
 <style lang="scss" scoped>
 .keys-page {
-  width: min(1080px, 90%);
+  width: 90%;
+  max-width: 1300px;
   margin: 0 auto;
-  padding: clamp(3rem, 9vh, 6rem) 0 5rem;
+  padding: 2.5rem 0 6rem;
 }
 
 .head {
   display: flex;
-  align-items: end;
+  flex-wrap: wrap;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 1.5rem;
   margin-bottom: 2rem;
 
   h1 {
-    margin: 0.35rem 0 0.5rem;
-    font-size: clamp(2rem, 4vw, 3rem);
-    letter-spacing: -0.04em;
+    margin: 0.35rem 0 0;
+    font-size: 2rem;
   }
 
   .sub {
     max-width: 620px;
-    margin: 0;
+    margin: 0.5rem 0 0;
     color: var(--p-text-muted-color);
-    line-height: 1.7;
+  }
+}
+
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+
+  .quota {
+    color: var(--p-text-muted-color);
+    font-family: var(--font-code);
+    font-size: 0.7rem;
+    white-space: nowrap;
   }
 
   :deep(.p-button) {
@@ -311,9 +338,10 @@ function formatDate(value: string) {
 }
 
 .empty {
+  margin-top: 2rem;
   padding: 3rem 1.5rem;
   border: 1px dashed var(--p-content-border-color);
-  border-radius: 1rem;
+  border-radius: 0.75rem;
   text-align: center;
 
   h2 {
@@ -327,30 +355,46 @@ function formatDate(value: string) {
 }
 
 .key-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 0.75rem;
+  list-style: none;
 }
 
-.key-card {
+.key-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 1.5rem;
-  padding: 1.2rem 1.3rem;
-  border: 1px solid var(--p-content-border-color);
-  border-radius: 0.85rem;
+  padding: 0.95rem 1.25rem;
+
+  & + & {
+    border-top: 1px solid var(--p-content-border-color);
+  }
+
+  &:hover {
+    background: var(--p-content-hover-background);
+  }
+}
+
+.key-main {
+  min-width: 0;
 }
 
 .key-title {
   display: flex;
   align-items: center;
   gap: 0.65rem;
+}
 
-  h2 {
-    margin: 0;
-    font-size: 1.05rem;
-  }
+.key-name {
+  overflow: hidden;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status {
@@ -363,11 +407,6 @@ function formatDate(value: string) {
   text-transform: uppercase;
   letter-spacing: 0.08em;
 
-  &--active {
-    color: var(--p-green-600);
-  }
-
-  &--revoked,
   &--expired {
     color: var(--p-red-500);
   }
@@ -375,17 +414,17 @@ function formatDate(value: string) {
 
 .prefix {
   display: inline-block;
-  margin-top: 0.35rem;
+  margin-top: 0.25rem;
   color: var(--p-text-muted-color);
   font-family: var(--font-code);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
 }
 
 .scopes {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  margin-top: 0.55rem;
+  margin-top: 0.45rem;
 
   span {
     padding: 0.15rem 0.4rem;
@@ -399,7 +438,7 @@ function formatDate(value: string) {
 
 .key-meta {
   display: flex;
-  gap: 1.4rem;
+  gap: 1.5rem;
   margin: 0;
 
   div {
@@ -417,8 +456,22 @@ function formatDate(value: string) {
 
   dd {
     margin: 0;
-    font-size: 0.78rem;
+    font-size: 0.8rem;
   }
+}
+
+:deep(.revoke-button) {
+  color: var(--p-text-muted-color);
+}
+
+:deep(.revoke-button svg) {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+:deep(.revoke-button.p-button:not(:disabled):hover) {
+  background: transparent;
+  color: var(--p-red-500);
 }
 
 .form {
@@ -517,6 +570,8 @@ function formatDate(value: string) {
 
 .secret-value {
   display: block;
+  flex: 1;
+  min-width: 0;
   overflow-wrap: anywhere;
   padding: 0.9rem;
   border: 1px solid var(--p-content-border-color);
@@ -527,36 +582,85 @@ function formatDate(value: string) {
   line-height: 1.5;
 }
 
-.secret-actions {
+.secret-row {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 0.75rem;
+}
+
+.secret-actions {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
 
   :deep(.p-button) {
     display: inline-flex;
     align-items: center;
+    height: 100%;
     gap: 0.35rem;
+    white-space: nowrap;
   }
 }
 
 .copied {
+  position: absolute;
+  right: 0.2rem;
+  bottom: -1.35rem;
   color: var(--p-green-600);
   font-size: 0.78rem;
 }
 
 @media (max-width: 900px) {
-  .key-card {
-    grid-template-columns: 1fr;
-    gap: 0.9rem;
+  .key-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'main revoke'
+      'meta meta';
+    align-items: start;
+    gap: 0.9rem 1rem;
+  }
+
+  .key-main {
+    grid-area: main;
   }
 
   .key-meta {
+    grid-area: meta;
     flex-wrap: wrap;
+  }
+
+  .revoke-button {
+    grid-area: revoke;
   }
 
   .head {
     align-items: flex-start;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 560px) {
+  .secret-row {
+    flex-direction: column;
+  }
+
+  .secret-actions {
+    width: 100%;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-self: auto;
+
+    :deep(.p-button) {
+      height: auto;
+    }
+  }
+
+  .copied {
+    position: static;
   }
 }
 </style>

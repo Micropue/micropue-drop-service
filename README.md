@@ -152,7 +152,7 @@ The creator at `/new` matches the site navigation width (`max-width: 1300px`): t
 - Auth: `Authorization: Bearer drop_sk_...`; keys have `projects:read`, `projects:write`, `deployments:write` and `projects:delete` scopes.
 - Deploys are atomic snapshots written straight to MySQL. A successful `POST /v1/projects/{id}/deploy` is immediately live on the content domain.
 - v1 supports HTML/CSS/JS only. OAuth for remote MCP is planned for v2; local MCP servers and Skills can use a personal key now.
-- API keys can expire in 30 / 90 / 180 / 365 days, or never. Full secrets are shown once.
+- API keys can expire in 30 / 90 / 180 / 365 days, or never. Full secrets are shown once, and each account can have up to 100 active keys.
 
 Database changes are additive and idempotent:
 

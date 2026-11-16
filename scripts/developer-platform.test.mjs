@@ -32,6 +32,7 @@ assert.equal(apiKeys.normalizeExpiry('never'), null)
 assert.equal(apiKeys.normalizeExpiry(30), 30)
 assert.equal(apiKeys.normalizeExpiry(365), 365)
 assert.throws(() => apiKeys.normalizeExpiry(7))
+assert.equal(apiKeys.MAX_ACTIVE_KEYS, 100)
 
 assert.equal(developerPortal.normalizeHostname('drop.micropue.com.cn:80'), 'drop.micropue.com.cn')
 assert.equal(developerPortal.normalizeHostname('https://DROP.micropue.com.cn:443/path'), 'drop.micropue.com.cn')

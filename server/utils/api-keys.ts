@@ -49,7 +49,7 @@ interface ApiKeyRow extends RowDataPacket {
 
 const API_KEY_RE = /^drop_sk_[A-Za-z0-9_-]{43}$/
 const KEY_PREFIX_LENGTH = 16
-const MAX_ACTIVE_KEYS = 10
+export const MAX_ACTIVE_KEYS = 100
 const EXPIRY_PRESETS: ApiKeyExpiryPreset[] = [30, 90, 180, 365, null]
 
 let pepperWarningShown = false
@@ -216,7 +216,7 @@ export async function listApiKeys(user: DropUser) {
     `SELECT \`id\`, \`owner_bits_id\`, \`name\`, \`prefix\`, \`scopes\`,
             \`created_at\`, \`last_used_at\`, \`expires_at\`, \`revoked_at\`
      FROM \`api_keys\`
-     WHERE \`owner_bits_id\` = ?
+     WHERE \`owner_bits_id\` = ? AND \`revoked_at\` IS NULL
      ORDER BY \`created_at\` DESC`,
     [user.bitsId]
   )
