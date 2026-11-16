@@ -119,6 +119,10 @@ export default defineNuxtConfig({
       contentUrl
     }
   },
+  routeRules: {
+    '/docs': { redirect: { to: '/developers', statusCode: 301 } },
+    '/developers/docs': { redirect: { to: '/developers#api', statusCode: 301 } }
+  },
   devServer: {
     port: 3678
   }

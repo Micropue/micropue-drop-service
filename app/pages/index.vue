@@ -15,44 +15,31 @@
           :speed="1" aria-hidden="true" />
       </div>
       <p class="lead">
-        Upload HTML, CSS and JS files as a project. It goes live at
-        <span class="url">{{ contentHost }}/{username}/{project}</span>
+        Publish static HTML, CSS and JS to the public web — from the editor or through your AI tool.
       </p>
+      <div class="mcp-command" aria-label="DROP MCP package and command">
+        <span class="command-label">DROP MCP · npm package <span class="package-name">@micropue/drop-mcp</span></span>
+        <code><span class="prompt">$</span> npx -y @micropue/drop-mcp</code>
+      </div>
       <div class="actions">
-        <template v-if="authUser">
-          <Button as-child v-slot="slotProps" severity="secondary">
-            <NuxtLink to="/dashboard" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
-              <ThLarge aria-hidden="true" />
-              <span>Dashboard</span>
-            </NuxtLink>
-          </Button>
-          <Button as-child v-slot="slotProps" severity="secondary">
-            <NuxtLink to="/developers" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
-              <Code aria-hidden="true" />
-              <span>Developers</span>
-            </NuxtLink>
-          </Button>
-          <Button as-child v-slot="slotProps">
-            <NuxtLink to="/new" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
-              <Plus aria-hidden="true" />
-              <span>Create Project</span>
-            </NuxtLink>
-          </Button>
-        </template>
-        <template v-else>
-          <Button as-child v-slot="slotProps">
-            <NuxtLink to="/sign" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
-              <SignIn aria-hidden="true" />
-              <span>Log in with BITS</span>
-            </NuxtLink>
-          </Button>
-          <Button as-child v-slot="slotProps" severity="secondary">
-            <NuxtLink to="/developers" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
-              <Code aria-hidden="true" />
-              <span>Developers</span>
-            </NuxtLink>
-          </Button>
-        </template>
+        <Button as-child v-slot="slotProps" severity="secondary">
+          <NuxtLink to="/dashboard" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
+            <ThLarge aria-hidden="true" />
+            <span>Dashboard</span>
+          </NuxtLink>
+        </Button>
+        <Button as-child v-slot="slotProps" severity="secondary">
+          <NuxtLink to="/developers" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
+            <Code aria-hidden="true" />
+            <span>Developer</span>
+          </NuxtLink>
+        </Button>
+        <Button as-child v-slot="slotProps">
+          <NuxtLink to="/new" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
+            <Plus aria-hidden="true" />
+            <span>Create Project</span>
+          </NuxtLink>
+        </Button>
       </div>
     </section>
 
@@ -68,20 +55,16 @@
 
 <script setup lang="ts">
 import Button from 'primevue/button'
-import SignIn from '@primeicons/vue/sign-in'
 import Plus from '@primeicons/vue/plus'
 import ThLarge from '@primeicons/vue/th-large'
 import Code from '@primeicons/vue/code'
 
 useHead({ title: 'Free Static Site Hosting' })
 
-const runtimeConfig = useRuntimeConfig()
-const contentHost = String(runtimeConfig.public.contentUrl).replace(/^https?:\/\//, '').replace(/\/+$/, '')
-
 useSeoMeta({
-  description: 'DROP hosts static HTML, CSS and JS projects for free.',
+  description: 'Publish static HTML, CSS and JS sites with DROP MCP or the DROP API.',
   ogTitle: 'DROP — Free Static Site Hosting',
-  ogDescription: `Upload HTML, CSS and JS files and publish them at ${contentHost}/{username}/{project}.`
+  ogDescription: 'Connect your AI tool with @micropue/drop-mcp and publish static sites to DROP.'
 })
 
 // TechText 画布不解析 CSS 变量，按系统主题传色
@@ -102,17 +85,15 @@ onBeforeUnmount(() => {
 })
 
 const ink = computed(() => (isDark.value ? '#fafafa' : '#09090b'))
-const { user: authUser } = useAuthUser()
-
 // 背景点阵：浅色深灰点 / 深色白点，整体低透明度，不抢字标
 const dotFrom = computed(() => (isDark.value ? 'rgba(250, 250, 250, 0.34)' : 'rgba(9, 9, 11, 0.30)'))
 const dotTo = computed(() => (isDark.value ? 'rgba(250, 250, 250, 0.08)' : 'rgba(9, 9, 11, 0.08)'))
 const glow = computed(() => (isDark.value ? 'rgba(250, 250, 250, 0.14)' : 'rgba(9, 9, 11, 0.10)'))
 
 const highlights = [
-  { index: '01', title: 'Free hosting', text: 'Every project is published as a static site — no build step required.' },
-  { index: '02', title: 'One account', text: 'Sign in with BITS. Your profile and username are shared across both sites.' },
-  { index: '03', title: 'Database only', text: 'Files live in the database, not on disk. Nothing to sync or deploy manually.' }
+  { index: '01', title: 'MCP-native', text: 'Connect Codex, Claude Desktop or Cursor through the @micropue/drop-mcp package.' },
+  { index: '02', title: 'Free hosting', text: 'Every project is published as a static site — no build step required.' },
+  { index: '03', title: 'One account', text: 'Sign in with BITS. Your profile and username are shared across both sites.' }
 ]
 </script>
 
@@ -185,12 +166,41 @@ const highlights = [
   color: var(--p-text-muted-color);
 }
 
-.url {
-  display: block;
-  margin-top: 0.5rem;
-  color: var(--p-text-color);
-  font-family: var(--font-code);
-  font-size: 0.85em;
+.mcp-command {
+  width: min(36rem, 100%);
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, var(--p-text-color) 4%, var(--p-content-background));
+  text-align: left;
+
+  .command-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--p-text-muted-color);
+    font-family: var(--font-code);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+  }
+
+  .package-name {
+    color: var(--p-text-color);
+  }
+
+  code {
+    display: flex;
+    gap: 0.55rem;
+    overflow-x: auto;
+    color: var(--p-text-color);
+    font-family: var(--font-code);
+    font-size: 0.88rem;
+    white-space: nowrap;
+  }
+
+  .prompt {
+    color: var(--p-text-muted-color);
+    user-select: none;
+  }
 }
 
 .actions {

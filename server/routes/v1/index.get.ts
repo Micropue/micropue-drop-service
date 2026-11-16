@@ -5,7 +5,7 @@ export default defineApiHandler(event => {
   return {
     name: 'DROP API',
     version: 'v1',
-    docs: 'https://drop.micropue.com.cn/developers/docs',
+    docs: 'https://drop.micropue.com.cn/developers#api',
     openapi: 'https://drop.micropue.com.cn/v1/openapi.json'
   }
 })

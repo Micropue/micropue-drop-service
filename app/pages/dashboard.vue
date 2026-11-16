@@ -5,12 +5,20 @@
         <h1>Dashboard</h1>
         <p class="sub">Signed in as {{ user?.nickname || user?.username }}.</p>
       </div>
-      <Button as-child v-slot="slotProps">
-        <NuxtLink to="/new" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
-          <Plus aria-hidden="true" />
-          <span>Create Project</span>
-        </NuxtLink>
-      </Button>
+      <div class="head-actions">
+        <Button as-child v-slot="slotProps" severity="secondary">
+          <NuxtLink to="/developers/keys" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
+            <Key aria-hidden="true" />
+            <span>API Keys</span>
+          </NuxtLink>
+        </Button>
+        <Button as-child v-slot="slotProps">
+          <NuxtLink to="/new" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
+            <Plus aria-hidden="true" />
+            <span>Create Project</span>
+          </NuxtLink>
+        </Button>
+      </div>
     </header>
 
     <div class="toolbar">
@@ -155,6 +163,7 @@ import Paginator from 'primevue/paginator'
 import Select from 'primevue/select'
 import Switch from 'primevue/toggleswitch'
 import Plus from '@primeicons/vue/plus'
+import Key from '@primeicons/vue/key'
 import PenToSquare from '@primeicons/vue/pen-to-square'
 import Trash from '@primeicons/vue/trash'
 import Times from '@primeicons/vue/times'
@@ -346,6 +355,12 @@ async function confirmDelete() {
     margin: 0.5rem 0 0;
     color: var(--p-text-muted-color);
   }
+}
+
+.head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .toolbar {
