@@ -10,19 +10,38 @@ export async function requireDeveloper(event: H3Event) {
   return user
 }
 
+export function normalizeHostname(value: string) {
+  const raw = value.trim().toLowerCase()
+  if (!raw) return ''
+
+  try {
+    const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//.test(raw) ? raw : `http://${raw}`)
+    return url.hostname.replace(/\.$/, '')
+  } catch {
+    return ''
+  }
+}
+
 export function assertSameOrigin(event: H3Event) {
   const origin = getRequestHeader(event, 'origin')
   if (!origin) return
 
-  const host = getRequestHeader(event, 'host') || getRequestHost(event)
   let originHost = ''
   try {
-    originHost = new URL(origin).host
+    originHost = normalizeHostname(new URL(origin).hostname)
   } catch {
     throw createError({ statusCode: 403, statusMessage: 'Invalid request origin.' })
   }
 
-  if (!host || originHost !== host) {
+  const forwardedHost = String(getRequestHeader(event, 'x-forwarded-host') || '').split(',')[0]
+  const siteHost = String(useRuntimeConfig(event).public.siteUrl || '')
+  const hosts = new Set([
+    getRequestHeader(event, 'host') || getRequestHost(event),
+    forwardedHost,
+    siteHost
+  ].map(normalizeHostname).filter(Boolean))
+
+  if (!originHost || !hosts.has(originHost)) {
     throw createError({ statusCode: 403, statusMessage: 'Cross-origin request rejected.' })
   }
 }

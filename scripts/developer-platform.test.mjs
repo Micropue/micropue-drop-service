@@ -6,6 +6,7 @@ process.env.AUTH_SECRET ||= 'developer-platform-test-secret'
 
 const jiti = createJiti(import.meta.url)
 const apiKeys = await jiti.import('../server/utils/api-keys.ts')
+const developerPortal = await jiti.import('../server/utils/developer-portal.ts')
 
 const first = apiKeys.generateApiKey()
 const second = apiKeys.generateApiKey()
@@ -31,6 +32,11 @@ assert.equal(apiKeys.normalizeExpiry('never'), null)
 assert.equal(apiKeys.normalizeExpiry(30), 30)
 assert.equal(apiKeys.normalizeExpiry(365), 365)
 assert.throws(() => apiKeys.normalizeExpiry(7))
+
+assert.equal(developerPortal.normalizeHostname('drop.micropue.com.cn:80'), 'drop.micropue.com.cn')
+assert.equal(developerPortal.normalizeHostname('https://DROP.micropue.com.cn:443/path'), 'drop.micropue.com.cn')
+assert.equal(developerPortal.normalizeHostname('drop.micropue.com.cn.'), 'drop.micropue.com.cn')
+assert.equal(developerPortal.normalizeHostname('not a host'), '')
 
 const openapiJson = JSON.parse(fs.readFileSync(new URL('../server/assets/openapi.v1.json', import.meta.url), 'utf8'))
 assert.equal(openapiJson.openapi, '3.1.0')
