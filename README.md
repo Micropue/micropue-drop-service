@@ -147,11 +147,13 @@ The creator at `/new` matches the site navigation width (`max-width: 1300px`): t
 
 ## Developer Platform
 
-- Developer docs: `/developers` (Drop MCP and REST API reference); `/developers/keys` manages personal API keys.
+- Developer docs: `/developers` (Drop MCP, DROP CLI and REST API reference); `/developers/keys` manages personal API keys.
+- Developer docs support English, Chinese, Russian and Japanese from the language selector; English is the default.
 - Public API: `https://drop.micropue.com.cn/v1`; OpenAPI at `/v1/openapi.json`.
 - Auth: `Authorization: Bearer drop_sk_...`; keys have `projects:read`, `projects:write`, `deployments:write` and `projects:delete` scopes.
 - Deploys are atomic snapshots written straight to MySQL. A successful `POST /v1/projects/{id}/deploy` is immediately live on the content domain.
 - v1 supports HTML/CSS/JS only. Drop MCP (`@micropue/drop-mcp`) runs locally over stdio; OAuth for remote MCP is planned for v2.
+- DROP CLI (`@micropue/drop-cli`, Node.js 20.12+) deploys a directory and watches it for changes with `drop`; use `drop deploy` for one-shot CI deployments.
 - API keys can expire in 30 / 90 / 180 / 365 days, or never. Full secrets are shown once, and each account can have up to 100 active keys.
 
 Database changes are additive and idempotent:

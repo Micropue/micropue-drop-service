@@ -7,8 +7,7 @@
                     <Book aria-hidden="true" />
                     <span class="privacy-trigger-label">Privacy</span>
                 </NuxtLink>
-                <Button as="a" class="github-link" severity="secondary" rounded :href="githubUrl" target="_blank"
-                    rel="noopener noreferrer">
+                <Button class="github-link" severity="secondary" rounded type="button" @click="reposOpen = true">
                     <Github aria-hidden="true" />
                     <span v-if="starLabel">{{ starLabel }} Stars</span>
                 </Button>
@@ -38,8 +37,32 @@
         <slot></slot>
     </main>
 
+    <Teleport to="body">
+        <Transition name="repo-veil">
+            <section v-if="reposOpen" class="repo-veil" :data-reveal-pending="repoRevealPending || undefined"
+                ref="reposDialog" role="dialog" aria-modal="true" aria-labelledby="repo-veil-title" tabindex="-1"
+                @click.self="closeRepositories">
+                <div class="repo-panel">
+                    <div class="repo-veil-bar">
+                        <h2 ref="reposTitle" id="repo-veil-title">Drop Github Links.</h2>
+                    </div>
+
+                    <div class="repo-veil-inner">
+                        <div ref="repoCards" class="repo-cards">
+                            <SlideCommit v-for="repository in repositories" :key="repository.name" class="repo-slider"
+                                :label="repository.name" done-label="Opening" error-label="Try again"
+                                :on-confirm="() => openRepository(repository.url)" :width="slideWidth" :height="46"
+                                :radius="23" track-color="#1b1b1e" handle-color="#f4f4f5" success-color="#ffffff"
+                                danger-color="#ff6b6b" :hold-ms="600" />
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </Transition>
+    </Teleport>
+
     <Dialog :visible="privacyOpen" modal header="Privacy Policy" :closable="false" :close-on-escape="false"
-        :dismissable-mask="false" :draggable="false" :style="{ width: 'min(520px, 92vw)' }">
+        :dismissable-mask="false" :draggable="false" :style="{ width: 'fit-content' }">
         <div class="consent">
             <p>
                 Before using DROP, please review and accept our Privacy Policy. It explains what we collect,
@@ -73,7 +96,6 @@ import Book from '@primeicons/vue/book'
 import SignOut from '@primeicons/vue/sign-out'
 import Check from '@primeicons/vue/check'
 
-const githubUrl = 'https://github.com/Micropue/micropue-drop-service'
 const { data } = useFetch<{ stars: number | null }>('/api/github/star')
 
 const route = useRoute()
@@ -89,6 +111,159 @@ const starLabel = computed(() =>
     data.value?.stars == null
         ? ''
         : new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(data.value.stars))
+
+const repositories = [
+    {
+        name: 'DROP',
+        url: 'https://github.com/Micropue/micropue-drop-service'
+    },
+    {
+        name: 'DROP MCP',
+        url: 'https://github.com/Micropue/micropue-drop-MCP'
+    },
+    {
+        name: 'DROP CLI',
+        url: 'https://github.com/Micropue/micropue-drop-CLI'
+    }
+] as const
+
+const reposOpen = ref(false)
+const reposDialog = ref<HTMLElement | null>(null)
+const reposTitle = ref<HTMLHeadingElement | null>(null)
+const repoCards = ref<HTMLDivElement | null>(null)
+const repoRevealPending = ref(false)
+const viewportWidth = ref(1440)
+const slideWidth = computed(() => {
+    const available = Math.max(200, viewportWidth.value - 96)
+    return viewportWidth.value < 560 ? Math.min(280, available) : 280
+})
+let previousBodyOverflow = ''
+let titleSplit: { words: Element[]; revert: () => void } | null = null
+let revealTimeline: { kill: () => void } | null = null
+let revealRun = 0
+
+function clearRepoReveal() {
+    revealRun += 1
+    revealTimeline?.kill()
+    revealTimeline = null
+    titleSplit?.revert()
+    titleSplit = null
+}
+
+async function revealRepositories() {
+    clearRepoReveal()
+    repoRevealPending.value = true
+
+    const title = reposTitle.value
+    const cards = repoCards.value
+    if (!title || !cards || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        repoRevealPending.value = false
+        return
+    }
+
+    const runId = revealRun
+    try {
+        const [{ gsap }, { SplitText }] = await Promise.all([import('gsap'), import('gsap/SplitText')])
+        if (!reposOpen.value || runId !== revealRun) return
+
+        gsap.registerPlugin(SplitText)
+        titleSplit = SplitText.create(title, {
+            type: 'words',
+            mask: 'words',
+            wordsClass: 'repo-title-word',
+            aria: 'auto'
+        })
+
+        const sliders = cards.querySelectorAll<HTMLElement>('.repo-slider')
+        gsap.set(titleSplit.words, { yPercent: 118, rotate: 1.5 })
+        gsap.set(sliders, { autoAlpha: 0, y: 30, scale: 0.955 })
+        repoRevealPending.value = false
+
+        revealTimeline = gsap.timeline({ delay: 0.18 })
+            .to(titleSplit.words, {
+                yPercent: 0,
+                rotate: 0,
+                duration: 0.92,
+                ease: 'power4.out',
+                stagger: 0.075
+            })
+            .to(
+                sliders,
+                {
+                    autoAlpha: 1,
+                    y: 0,
+                    scale: 1,
+                    duration: 0.82,
+                    ease: 'power3.out',
+                    stagger: 0.13,
+                    clearProps: 'opacity,visibility,transform'
+                },
+                '-=0.52'
+            )
+    } catch {
+        repoRevealPending.value = false
+        clearRepoReveal()
+    }
+}
+
+async function closeRepositories() {
+    reposOpen.value = false
+    await nextTick()
+    document.querySelector<HTMLElement>('.github-link')?.focus()
+}
+
+function openRepository(url: string) {
+    const link = document.createElement('a')
+    link.href = url
+    link.target = '_blank'
+    link.rel = 'noopener noreferrer'
+    link.click()
+    void closeRepositories()
+}
+
+function handleGlobalKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && reposOpen.value) {
+        event.preventDefault()
+        void closeRepositories()
+    }
+}
+
+function handleViewportResize() {
+    viewportWidth.value = window.innerWidth
+}
+
+watch(reposOpen, async (open) => {
+    const appRoot = document.getElementById('__nuxt')
+    if (open) {
+        repoRevealPending.value = true
+        previousBodyOverflow = document.body.style.overflow
+        document.body.style.overflow = 'hidden'
+        appRoot?.setAttribute('inert', '')
+        handleViewportResize()
+        await nextTick()
+        reposDialog.value?.focus({ preventScroll: true })
+        void revealRepositories()
+    } else {
+        clearRepoReveal()
+        repoRevealPending.value = false
+        document.body.style.overflow = previousBodyOverflow
+        appRoot?.removeAttribute('inert')
+    }
+})
+
+onMounted(() => {
+    handleViewportResize()
+    window.addEventListener('resize', handleViewportResize)
+    window.addEventListener('keydown', handleGlobalKeydown)
+})
+
+onBeforeUnmount(() => {
+    clearRepoReveal()
+    window.removeEventListener('resize', handleViewportResize)
+    window.removeEventListener('keydown', handleGlobalKeydown)
+    document.body.style.overflow = previousBodyOverflow
+    document.getElementById('__nuxt')?.removeAttribute('inert')
+})
 
 // 政策页本身不弹同意框，否则会挡住阅读
 const privacyOpen = computed(() => Boolean(authUser.value && !authUser.value.privacyAcceptedAt && route.path !== '/privacy'))
@@ -278,6 +453,205 @@ header {
 
 main {
     min-height: calc(100vh - 70px);
+}
+
+.repo-veil {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    align-items: end;
+    justify-items: end;
+    padding: clamp(1rem, 2vw, 1.5rem);
+    overflow: hidden;
+    overscroll-behavior: contain;
+    outline: none;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    color: #f5f5f5;
+    isolation: isolate;
+}
+
+.repo-panel {
+    position: relative;
+    width: fit-content;
+    max-width: 100%;
+    max-height: calc(100dvh - 2rem);
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 0;
+    border-radius: 0;
+    background: #111113;
+    box-shadow: none;
+}
+
+.repo-veil-enter-active {
+    transition: opacity 320ms ease;
+}
+
+.repo-veil-leave-active {
+    transition: opacity 220ms ease;
+}
+
+.repo-veil-enter-active .repo-panel {
+    transition:
+        transform 580ms cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 320ms ease;
+}
+
+.repo-veil-leave-active .repo-panel {
+    transition:
+        transform 260ms ease,
+        opacity 220ms ease;
+}
+
+.repo-veil-enter-from,
+.repo-veil-leave-to {
+    opacity: 0;
+}
+
+.repo-veil-enter-from .repo-panel {
+    transform: translateY(34px) scale(0.975);
+    opacity: 0;
+}
+
+.repo-veil-leave-to .repo-panel {
+    transform: translateY(16px) scale(0.985);
+    opacity: 0;
+}
+
+.repo-veil-grid {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.45;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 54px 54px;
+    mask-image: linear-gradient(to bottom, black, transparent 85%);
+}
+
+.repo-veil-bar {
+    position: relative;
+    z-index: 1;
+    padding: 1.25rem 1.25rem 0.5rem;
+    display: flex;
+    align-items: center;
+
+    h2 {
+        margin: 0;
+        font-size: clamp(1.65rem, 3vw, 1.9rem);
+        font-weight: 650;
+        letter-spacing: 0.015em;
+        line-height: 1;
+    }
+}
+
+.repo-veil-inner {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0.75rem 1.25rem 1.5rem;
+}
+
+.repo-veil[data-reveal-pending] {
+    .repo-veil-bar h2,
+    .repo-slider {
+        opacity: 0;
+    }
+}
+
+:deep(.repo-title-word-mask) {
+    padding-bottom: 0.18em;
+    margin-bottom: -0.18em;
+}
+
+:deep(.repo-title-word) {
+    will-change: transform;
+}
+
+.repo-cards {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.72rem;
+}
+
+.repo-slider {
+    flex: none;
+}
+
+@media (max-width: 560px) {
+    .repo-veil {
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        padding: 1.25rem;
+        background: transparent;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    .repo-panel {
+        width: fit-content;
+        max-width: 100%;
+        height: auto;
+        min-height: 0;
+        max-height: calc(100dvh - 2.5rem);
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .repo-veil-enter-from .repo-panel {
+        transform: translate3d(0, 100%, 0);
+        opacity: 1;
+    }
+
+    .repo-veil-leave-to .repo-panel {
+        transform: translate3d(0, 100%, 0);
+        opacity: 1;
+    }
+
+    .repo-veil-bar {
+        padding-top: clamp(1.15rem, 4vw, 1.6rem);
+        padding-bottom: 0.35rem;
+    }
+
+    .repo-veil-inner {
+        padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+    }
+
+    .repo-cards {
+        gap: 0.8rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .repo-veil-enter-active,
+    .repo-veil-leave-active {
+        transition-duration: 1ms;
+    }
+
+    .repo-veil[data-reveal-pending] {
+        .repo-veil-bar h2,
+        .repo-slider {
+            opacity: 1;
+        }
+    }
+
+    .repo-veil-enter-active .repo-panel,
+    .repo-veil-leave-active .repo-panel {
+        transition-duration: 1ms;
+    }
 }
 
 .consent {

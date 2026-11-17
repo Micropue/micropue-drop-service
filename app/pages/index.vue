@@ -17,9 +17,20 @@
       <p class="lead">
         Publish static HTML, CSS and JS to the public web — from the editor or through your AI tool.
       </p>
-      <div class="mcp-command" aria-label="DROP MCP package and command">
-        <span class="command-label">DROP MCP · npm package <span class="package-name">@micropue/drop-mcp</span></span>
-        <code><span class="prompt">$</span> npx -y @micropue/drop-mcp</code>
+      <div class="install-command" aria-label="DROP CLI and MCP installation commands">
+        <div class="command-tabs" aria-label="Choose CLI or MCP">
+          <button type="button" :class="{ active: activeCommand === 'cli' }"
+            :aria-pressed="activeCommand === 'cli'" @click="activeCommand = 'cli'">
+            CLI
+          </button>
+          <button type="button" :class="{ active: activeCommand === 'mcp' }"
+            :aria-pressed="activeCommand === 'mcp'" @click="activeCommand = 'mcp'">
+            MCP
+          </button>
+        </div>
+        <div class="command-panel">
+          <code><span class="prompt">$</span> {{ commands[activeCommand] }}</code>
+        </div>
       </div>
       <div class="actions">
         <Button as-child v-slot="slotProps" severity="secondary">
@@ -89,6 +100,12 @@ const ink = computed(() => (isDark.value ? '#fafafa' : '#09090b'))
 const dotFrom = computed(() => (isDark.value ? 'rgba(250, 250, 250, 0.34)' : 'rgba(9, 9, 11, 0.30)'))
 const dotTo = computed(() => (isDark.value ? 'rgba(250, 250, 250, 0.08)' : 'rgba(9, 9, 11, 0.08)'))
 const glow = computed(() => (isDark.value ? 'rgba(250, 250, 250, 0.14)' : 'rgba(9, 9, 11, 0.10)'))
+
+const activeCommand = ref<'cli' | 'mcp'>('cli')
+const commands = {
+  cli: 'npm install -g @micropue/drop-cli',
+  mcp: 'npx -y @micropue/drop-mcp'
+} as const
 
 const highlights = [
   { index: '01', title: 'MCP-native', text: 'Connect Codex, Claude Desktop or Cursor through the @micropue/drop-mcp package.' },
@@ -166,26 +183,62 @@ const highlights = [
   color: var(--p-text-muted-color);
 }
 
-.mcp-command {
+.install-command {
   width: min(36rem, 100%);
-  padding: 0.85rem 1rem;
   border: 1px solid var(--p-content-border-color);
   border-radius: 0.7rem;
   background: color-mix(in srgb, var(--p-text-color) 4%, var(--p-content-background));
+  overflow: hidden;
   text-align: left;
+}
 
-  .command-label {
-    display: block;
-    margin-bottom: 0.5rem;
+.command-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0 0.45rem;
+  border-bottom: 1px solid var(--p-content-border-color);
+
+  button {
+    position: relative;
+    padding: 0.65rem 0.55rem 0.6rem;
+    border: 0;
+    background: transparent;
     color: var(--p-text-muted-color);
     font-family: var(--font-code);
-    font-size: 0.68rem;
-    letter-spacing: 0.08em;
-  }
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: color 0.15s;
 
-  .package-name {
-    color: var(--p-text-color);
+    &::after {
+      position: absolute;
+      right: 0.45rem;
+      bottom: -1px;
+      left: 0.45rem;
+      height: 2px;
+      background: transparent;
+      content: '';
+    }
+
+    &:hover,
+    &:focus-visible {
+      color: var(--p-text-color);
+    }
+
+    &.active {
+      color: var(--p-text-color);
+
+      &::after {
+        background: var(--p-text-color);
+      }
+    }
   }
+}
+
+.command-panel {
+  padding: 0.9rem 1rem;
 
   code {
     display: flex;
