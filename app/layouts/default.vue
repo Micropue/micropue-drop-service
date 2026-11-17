@@ -56,6 +56,9 @@
                                 danger-color="#ff6b6b" :hold-ms="600" />
                         </div>
                     </div>
+
+                    <a ref="repositoryLink" class="repo-navigation-link" target="_blank" rel="noopener noreferrer"
+                        tabindex="-1" aria-hidden="true"></a>
                 </div>
             </section>
         </Transition>
@@ -131,6 +134,7 @@ const reposOpen = ref(false)
 const reposDialog = ref<HTMLElement | null>(null)
 const reposTitle = ref<HTMLHeadingElement | null>(null)
 const repoCards = ref<HTMLDivElement | null>(null)
+const repositoryLink = ref<HTMLAnchorElement | null>(null)
 const repoRevealPending = ref(false)
 const viewportWidth = ref(1440)
 const slideWidth = computed(() => {
@@ -213,12 +217,11 @@ async function closeRepositories() {
 }
 
 function openRepository(url: string) {
-    const link = document.createElement('a')
+    const link = repositoryLink.value
+    if (!link) return
     link.href = url
-    link.target = '_blank'
-    link.rel = 'noopener noreferrer'
     link.click()
-    void closeRepositories()
+    window.setTimeout(() => void closeRepositories(), 0)
 }
 
 function handleGlobalKeydown(event: KeyboardEvent) {
@@ -487,6 +490,15 @@ main {
     border-radius: 0;
     background: #111113;
     box-shadow: none;
+}
+
+.repo-navigation-link {
+    position: fixed;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
 }
 
 .repo-veil-enter-active {

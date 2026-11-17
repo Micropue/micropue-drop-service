@@ -104,6 +104,7 @@ type MoveEvent = { pointerId: number; clientX: number; timeStamp: number }
 type UpEvent = { pointerId: number }
 
 const PAD = 4
+const COMMIT_SLOP = 8
 const SQUASH_MAX = 0.08
 const SQUASH_DIV = 110
 const SWELL = 1.03
@@ -230,6 +231,8 @@ watchPostEffect(paint)
 onMounted(() => {
   ;[x, anchor, shown, spin, pulse, shake].forEach(mv => offs.push(mv.on('change', paint)))
   paint()
+  trackRef.value?.addEventListener('touchstart', preventTouchStart, { passive: false })
+  trackRef.value?.addEventListener('touchmove', preventTouchMove, { passive: false })
 })
 
 onUnmounted(() => {
@@ -238,6 +241,8 @@ onUnmounted(() => {
   unwatch?.()
   offs.forEach(off => off())
   ;[x, anchor, shown, spin, pulse, shake].forEach(mv => mv.stop())
+  trackRef.value?.removeEventListener('touchstart', preventTouchStart)
+  trackRef.value?.removeEventListener('touchmove', preventTouchMove)
   run += 1
 })
 
@@ -329,10 +334,23 @@ const commit = (viaKey: boolean) => {
   )
 }
 
-let live: { move: (e: MoveEvent) => void; up: (e: UpEvent) => void } = { move: () => {}, up: () => {} }
+let live: {
+  move: (e: MoveEvent) => void
+  up: (e: UpEvent) => void
+  cancel: (e: UpEvent) => void
+} = { move: () => {}, up: () => {}, cancel: () => {} }
 
 const down = (e: PointerEvent) => {
-  if (props.disabled || grip || phase.value === 'pending' || phase.value === 'done' || e.button !== 0) return
+  if (
+    props.disabled ||
+    grip ||
+    phase.value === 'pending' ||
+    phase.value === 'done' ||
+    (e.pointerType === 'mouse' && e.button !== 0)
+  ) {
+    return
+  }
+  e.preventDefault()
   x.stop()
   grip = { id: e.pointerId, grab: null, moved: false, hist: [] }
   held.value = true
@@ -344,13 +362,14 @@ const down = (e: PointerEvent) => {
   unwatch?.()
   const onMove = (ev: PointerEvent) => ev.isTrusted && live.move(ev)
   const onUp = (ev: PointerEvent) => ev.isTrusted && live.up(ev)
+  const onCancel = (ev: PointerEvent) => ev.isTrusted && live.cancel(ev)
   window.addEventListener('pointermove', onMove)
   window.addEventListener('pointerup', onUp)
-  window.addEventListener('pointercancel', onUp)
+  window.addEventListener('pointercancel', onCancel)
   unwatch = () => {
     window.removeEventListener('pointermove', onMove)
     window.removeEventListener('pointerup', onUp)
-    window.removeEventListener('pointercancel', onUp)
+    window.removeEventListener('pointercancel', onCancel)
     unwatch = null
   }
 }
@@ -381,10 +400,24 @@ const up = (e: UpEvent) => {
     // Pointer capture may already have been released.
   }
   held.value = false
-  if (x.get() >= travel.value) commit(false)
+  if (x.get() >= travel.value - COMMIT_SLOP) commit(false)
   else if (g.moved) goHome(velocityOf(g.hist))
 }
-live = { move, up }
+
+const cancel = (e: UpEvent) => {
+  const g = grip
+  if (!g || g.id !== e.pointerId) return
+  grip = null
+  unwatch?.()
+  try {
+    trackRef.value?.releasePointerCapture(e.pointerId)
+  } catch {
+    // Pointer capture may already have been released.
+  }
+  held.value = false
+  goHome(velocityOf(g.hist))
+}
+live = { move, up, cancel }
 
 const onKeyDown = (e: KeyboardEvent) => {
   if (props.disabled || phase.value === 'pending' || phase.value === 'done') return
@@ -409,6 +442,17 @@ const onKeyDown = (e: KeyboardEvent) => {
 
 const onCapsuleEnter = (e: PointerEvent) => {
   if (e.pointerType === 'mouse' && finePointer()) hot.value = true
+}
+
+const canSuppressTouch = () =>
+  !props.disabled && phase.value !== 'pending' && phase.value !== 'done'
+
+const preventTouchStart = (e: TouchEvent) => {
+  if (e.cancelable && canSuppressTouch()) e.preventDefault()
+}
+
+const preventTouchMove = (e: TouchEvent) => {
+  if (e.cancelable && grip) e.preventDefault()
 }
 
 const fontSize = computed(() => clamp(Math.round(props.height * 0.25), 13, 17))
@@ -474,6 +518,7 @@ const rootStyle = computed(
   cursor: grab;
   touch-action: none;
   user-select: none;
+  -webkit-user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
   will-change: transform;
