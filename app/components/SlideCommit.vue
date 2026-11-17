@@ -105,6 +105,7 @@ type UpEvent = { pointerId: number }
 
 const PAD = 4
 const COMMIT_SLOP = 8
+const TOUCH_ID = -1
 const SQUASH_MAX = 0.08
 const SQUASH_DIV = 110
 const SWELL = 1.03
@@ -231,8 +232,10 @@ watchPostEffect(paint)
 onMounted(() => {
   ;[x, anchor, shown, spin, pulse, shake].forEach(mv => offs.push(mv.on('change', paint)))
   paint()
-  trackRef.value?.addEventListener('touchstart', preventTouchStart, { passive: false })
-  trackRef.value?.addEventListener('touchmove', preventTouchMove, { passive: false })
+  trackRef.value?.addEventListener('touchstart', startTouch, { passive: false })
+  trackRef.value?.addEventListener('touchmove', moveTouch, { passive: false })
+  trackRef.value?.addEventListener('touchend', endTouch, { passive: false })
+  trackRef.value?.addEventListener('touchcancel', cancelTouch, { passive: false })
 })
 
 onUnmounted(() => {
@@ -241,8 +244,10 @@ onUnmounted(() => {
   unwatch?.()
   offs.forEach(off => off())
   ;[x, anchor, shown, spin, pulse, shake].forEach(mv => mv.stop())
-  trackRef.value?.removeEventListener('touchstart', preventTouchStart)
-  trackRef.value?.removeEventListener('touchmove', preventTouchMove)
+  trackRef.value?.removeEventListener('touchstart', startTouch)
+  trackRef.value?.removeEventListener('touchmove', moveTouch)
+  trackRef.value?.removeEventListener('touchend', endTouch)
+  trackRef.value?.removeEventListener('touchcancel', cancelTouch)
   run += 1
 })
 
@@ -346,6 +351,7 @@ const down = (e: PointerEvent) => {
     grip ||
     phase.value === 'pending' ||
     phase.value === 'done' ||
+    e.pointerType === 'touch' ||
     (e.pointerType === 'mouse' && e.button !== 0)
   ) {
     return
@@ -447,12 +453,37 @@ const onCapsuleEnter = (e: PointerEvent) => {
 const canSuppressTouch = () =>
   !props.disabled && phase.value !== 'pending' && phase.value !== 'done'
 
-const preventTouchStart = (e: TouchEvent) => {
-  if (e.cancelable && canSuppressTouch()) e.preventDefault()
+const startTouch = (e: TouchEvent) => {
+  if (e.touches.length !== 1 || !canSuppressTouch() || grip) return
+  if (e.cancelable) e.preventDefault()
+  const touch = e.touches[0]
+  x.stop()
+  grip = { id: TOUCH_ID, grab: null, moved: false, hist: [] }
+  held.value = true
+  move({ pointerId: TOUCH_ID, clientX: touch.clientX, timeStamp: e.timeStamp })
 }
 
-const preventTouchMove = (e: TouchEvent) => {
-  if (e.cancelable && grip) e.preventDefault()
+const moveTouch = (e: TouchEvent) => {
+  if (!grip || grip.id !== TOUCH_ID || e.touches.length !== 1) return
+  if (e.cancelable) e.preventDefault()
+  const touch = e.touches[0]
+  move({ pointerId: TOUCH_ID, clientX: touch.clientX, timeStamp: e.timeStamp })
+}
+
+const endTouch = (e: TouchEvent) => {
+  if (!grip || grip.id !== TOUCH_ID) return
+  if (e.cancelable) e.preventDefault()
+  const touch = e.changedTouches[0]
+  if (touch) {
+    move({ pointerId: TOUCH_ID, clientX: touch.clientX, timeStamp: e.timeStamp })
+  }
+  up({ pointerId: TOUCH_ID })
+}
+
+const cancelTouch = (e: TouchEvent) => {
+  if (!grip || grip.id !== TOUCH_ID) return
+  if (e.cancelable) e.preventDefault()
+  cancel({ pointerId: TOUCH_ID })
 }
 
 const fontSize = computed(() => clamp(Math.round(props.height * 0.25), 13, 17))
@@ -603,6 +634,15 @@ const rootStyle = computed(
   inset: 0;
 }
 
+.slide-commit[data-phase='pending'] .slide-capsule-content,
+.slide-commit[data-phase='done'] .slide-capsule-content {
+  transform: translateX(0) !important;
+}
+
+.slide-commit[data-phase='done'] .slide-capsule {
+  clip-path: inset(0 0 0 0 round var(--sc-grip-r)) !important;
+}
+
 .slide-label {
   position: absolute;
   inset: 0;
@@ -625,6 +665,11 @@ const rootStyle = computed(
 .slide-arrow,
 .slide-spinner {
   transition: filter 200ms ease;
+}
+
+.slide-commit[data-phase='done'] .slide-arrow,
+.slide-commit[data-phase='done'] .slide-spinner {
+  opacity: 0 !important;
 }
 
 .slide-commit[data-phase='pending'] {

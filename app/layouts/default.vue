@@ -217,6 +217,11 @@ async function closeRepositories() {
 }
 
 function openRepository(url: string) {
+    if (window.matchMedia?.('(pointer: coarse)').matches || navigator.maxTouchPoints > 0) {
+        window.location.assign(url)
+        return
+    }
+
     const link = repositoryLink.value
     if (!link) return
     link.href = url
