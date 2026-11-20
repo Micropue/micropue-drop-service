@@ -9,6 +9,7 @@
     "db:migrate": "node --env-file-if-exists=.env --env-file-if-exists=.env.production --experimental-strip-types scripts/migrate.mjs",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
+    "test:seo": "node scripts/seo.test.mjs",
     "test:developer": "node scripts/developer-platform.test.mjs",
     "test:folder-import": "node --experimental-strip-types scripts/folder-import.test.mjs",
     "postinstall": "nuxt prepare"

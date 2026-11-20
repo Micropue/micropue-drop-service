@@ -7,6 +7,7 @@ export default defineEventHandler(async event => {
   const pathname = getRequestURL(event).pathname
   // 密码解锁接口必须在内容域可用，解锁 Cookie 才会签在内容域
   if (pathname.startsWith('/api/unlock/')) return
+  if (pathname === '/sitemap-content.xml') return
 
   const segments = pathname.split('/').filter(Boolean).map(segment => {
     try {

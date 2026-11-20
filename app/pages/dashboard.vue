@@ -195,6 +195,7 @@ interface ProjectListResponse {
 }
 
 useHead({ title: 'Dashboard' })
+useNoIndex()
 
 const { user } = useAuthUser()
 if (!user.value) await navigateTo('/sign')

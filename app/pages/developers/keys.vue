@@ -131,6 +131,7 @@ import Trash from '@primeicons/vue/trash'
 import Copy from '@primeicons/vue/copy'
 
 useHead({ title: 'API Keys' })
+useNoIndex()
 
 interface ApiKey {
   id: string

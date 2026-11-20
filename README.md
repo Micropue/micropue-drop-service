@@ -174,6 +174,14 @@ node --env-file-if-exists=/sdb/drop.micropue.com.cn.env server/migrate.mjs
 
 New tables are `api_keys`, `project_deployments` and `schema_migrations`; existing `projects` only gains a `revision` column. No table is dropped or rebuilt.
 
+## SEO and AI Discovery
+
+- `/llms.txt` provides a concise product definition, core pages and documentation entry points; `/llms-full.txt` contains the extended publishing, API, limits and indexing reference. Both expose the current update date and can be checked with `npm run test:seo`.
+- `/sitemap.xml` is a Sitemap index. The main-site `/sitemap-main.xml` lists the home page, `/developers`, `/privacy` and the two LLM references with their real content dates.
+- User content is split into `https://dropcontent.micropue.com.cn/sitemap-content.xml`. It includes public, enabled projects that contain `index.html`; `lastmod` is the latest successful deployment time, falling back to the project update time.
+- Generated `site-*`, automated `news-*` / `gh-new-*`, test/temp/draft pages, generic names and duplicate URLs are omitted from the content Sitemap.
+- `/sign`, `/dashboard`, `/new`, `/account` and `/developers/keys` send both a robots meta tag and `X-Robots-Tag: noindex, nofollow`.
+
 ## Hosting
 
 Projects are served by Nitro straight from MySQL — nothing is written to disk — and only on the content domain.
@@ -188,7 +196,7 @@ Projects are served by Nitro straight from MySQL — nothing is written to disk 
 - On the content domain, app pages and `/api/*` are 404; only project files and `/api/unlock/*` are reachable.
 - Password attempts are limited to 10 per 10 minutes per project + IP in Redis.
 - Project files, the content notice and password pages send `Cache-Control: no-store` plus `CDN-Cache-Control: no-store`, so browsers and Cloudflare do not keep stale copies.
-- Password pages also send `X-Robots-Tag: noindex`; `sitemap.xml` lists only public, enabled projects on the content domain.
+- Password pages also send `X-Robots-Tag: noindex`; `/sitemap-content.xml` lists only public, enabled projects on the content domain.
 - The dashboard path text links to the live site and is not a link when the project is disabled.
 
 Set the content host in `.env`:
@@ -285,7 +293,7 @@ npm run preview
 app/
   assets/css/    main.scss (BITS theme tokens, fonts, base styles)
   components/    BrandLogo.vue, TechText.vue, DotField.vue, UserAvatar.vue, CodeEditor.client.vue, FileTypeIcon.vue
-  composables/   useAuthUser.ts
+  composables/   useAuthUser.ts, useNoIndex.ts
   layouts/       default.vue (header + consent)
   pages/         index.vue, account.vue, dashboard.vue, new.vue, privacy.vue, sign.vue
 public/          favicon.ico, robots.txt, file-icons/ (Material Icon Theme, MIT)
@@ -299,13 +307,13 @@ server/
   assets/        openapi.v1.json
   plugins/       db-init.ts (startup schema check)
   middleware/    content.ts (content-domain routing)
-  routes/        sitemap.xml.ts
-  utils/         auth.ts, db.ts, projects.ts, site.ts, redis.ts, schema.ts, api*.ts
+  routes/        sitemap.xml.ts, sitemap-main.xml.ts, sitemap-content.xml.ts, llms*.txt.ts
+  utils/         auth.ts, db.ts, projects.ts, site.ts, redis.ts, schema.ts, seo.ts, llms.ts, api*.ts
 docker-compose.yml
 nuxt.config.ts
 .env.example
 .github/workflows/  build-upload.yml (build + scp to /sdb/drop.micropue.com.cn)
-scripts/            migrate.mjs, build-migrate.mjs, developer-platform.test.mjs, seed-demo.mjs
+scripts/            migrate.mjs, build-migrate.mjs, developer-platform.test.mjs, folder-import.test.mjs, seo.test.mjs, seed-demo.mjs
 ```
 
 ## License

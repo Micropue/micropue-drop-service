@@ -55,6 +55,7 @@ import ExternalLink from '@primeicons/vue/external-link'
 import ThLarge from '@primeicons/vue/th-large'
 
 useHead({ title: 'Account' })
+useNoIndex()
 
 const { user } = useAuthUser()
 if (!user.value) await navigateTo('/sign')

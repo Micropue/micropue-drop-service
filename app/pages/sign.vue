@@ -26,6 +26,7 @@ import Button from 'primevue/button'
 import SignIn from '@primeicons/vue/sign-in'
 
 useHead({ title: 'Log In' })
+useNoIndex()
 
 const route = useRoute()
 const error = computed(() => {

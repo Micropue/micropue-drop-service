@@ -321,6 +321,7 @@ const route = useRoute()
 const editingSid = typeof route.query.edit === 'string' ? route.query.edit : ''
 
 useHead({ title: computed(() => (editingSid ? 'Edit Project' : 'Create Project')) })
+useNoIndex()
 
 const username = computed(() => user.value?.username || '')
 const config = useRuntimeConfig()

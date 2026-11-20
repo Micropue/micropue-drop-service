@@ -101,7 +101,7 @@ export default defineNuxtConfig({
     }
   },
   compatibilityDate: '2025-07-15',
-  devtools: { enabled: true },
+  devtools: { enabled: false },
   css: ['~/assets/css/main.scss'],
   modules: ['@primevue/nuxt-module'],
   primevue: {
@@ -121,7 +121,12 @@ export default defineNuxtConfig({
   },
   routeRules: {
     '/docs': { redirect: { to: '/developers', statusCode: 301 } },
-    '/developers/docs': { redirect: { to: '/developers#api', statusCode: 301 } }
+    '/developers/docs': { redirect: { to: '/developers#api', statusCode: 301 } },
+    '/sign': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
+    '/dashboard': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
+    '/new': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
+    '/account': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
+    '/developers/keys': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } }
   },
   devServer: {
     port: 3678
