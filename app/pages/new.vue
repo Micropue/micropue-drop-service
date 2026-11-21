@@ -16,6 +16,10 @@
           <ShareAlt aria-hidden="true" />
           <span>Share</span>
         </Button>
+        <Button severity="secondary" :disabled="!savedPath" @click="openFork">
+          <CodeBranch aria-hidden="true" />
+          <span>Fork</span>
+        </Button>
         <Button :disabled="loadingProject || loadFailed" @click="handleSave">
           <SaveIcon aria-hidden="true" />
           <span>Save</span>
@@ -221,6 +225,53 @@
       </div>
     </Dialog>
 
+    <Dialog v-model:visible="forkDialog" modal header="Fork project" :style="{ width: 'min(460px, 92vw)' }"
+      :draggable="false">
+      <div class="fork-dialog">
+        <div class="fork-toggle-row" :class="{ 'is-on': forkEnabled }">
+          <div class="fork-toggle-copy">
+            <strong>Allow others to fork this project</strong>
+            <p>People with this invitation can copy the full project into their own account.</p>
+          </div>
+          <Switch class="fork-switch" :model-value="forkEnabled" :disabled="forkLoading || forkUpdating"
+            aria-label="Allow others to fork this project" @update:model-value="setForkSharing" />
+        </div>
+
+        <div v-if="forkLoading" class="fork-loading" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <span>Loading fork settings…</span>
+        </div>
+
+        <p v-else-if="forkError" class="fork-error" role="alert">{{ forkError }}</p>
+
+        <template v-else-if="forkData">
+          <template v-if="forkEnabled && forkData.inviteUrl">
+            <div class="qr-wrap fork-qr-wrap">
+              <img v-if="forkQrSrc" :src="forkQrSrc" width="196" height="196" alt="Fork invitation QR code">
+              <span v-else class="fork-qr-loading">Creating QR code…</span>
+            </div>
+            <div class="share-link">
+              <InputText :model-value="forkData.inviteUrl" readonly />
+              <Button severity="secondary" @click="copyForkUrl">
+                <Copy aria-hidden="true" />
+                <span>Copy</span>
+              </Button>
+            </div>
+            <p class="hint">
+              Anyone with this link can make a complete copy of the project.
+              Turn the switch off to stop new forks immediately.
+            </p>
+            <p v-if="forkCopied" class="copied">{{ forkCopied }} copied</p>
+          </template>
+
+          <div v-else class="fork-off-state">
+            <CodeBranch aria-hidden="true" />
+            <p>Sharing is off. Turn on the switch to create an invitation link. Existing forks stay in their owners’ accounts.</p>
+          </div>
+        </template>
+      </div>
+    </Dialog>
+
     <Dialog v-model:visible="deleteDialog" modal header="Delete" :style="{ width: 'min(400px, 92vw)' }"
       :draggable="false">
       <p class="dialog-text">{{ deleteSummary }}</p>
@@ -259,6 +310,7 @@
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
+import Switch from 'primevue/toggleswitch'
 import { Draggable } from '@he-tree/vue'
 import '@he-tree/vue/style/default.css'
 import Dialog from 'primevue/dialog'
@@ -270,6 +322,7 @@ import Upload from '@primeicons/vue/upload'
 import FolderOpen from '@primeicons/vue/folder-open'
 import SaveIcon from '@primeicons/vue/save'
 import ShareAlt from '@primeicons/vue/share-alt'
+import CodeBranch from '@primeicons/vue/code-branch'
 import Cog from '@primeicons/vue/cog'
 import Eye from '@primeicons/vue/eye'
 import Refresh from '@primeicons/vue/refresh'
@@ -312,6 +365,11 @@ interface SavedProject {
   visibility: Visibility
   folders: string[]
   path: string
+}
+
+interface ForkSettings {
+  enabled: boolean
+  inviteUrl: string | null
 }
 
 const { user } = useAuthUser()
@@ -688,6 +746,7 @@ const languageLabel = (language: Language) =>
 
 const settingsDialog = ref(false)
 const shareDialog = ref(false)
+const forkDialog = ref(false)
 const deleteDialog = ref(false)
 const leaveDialog = ref(false)
 const explorerOpen = ref(false)
@@ -724,8 +783,16 @@ watch(renameValue, () => {
 })
 const qrSrc = ref('')
 const copied = ref(false)
+const forkData = ref<ForkSettings | null>(null)
+const forkEnabled = ref(false)
+const forkLoading = ref(false)
+const forkUpdating = ref(false)
+const forkError = ref('')
+const forkQrSrc = ref('')
+const forkCopied = ref('')
 let allowLeave = false
 let pendingPath = ''
+let forkCopiedTimer: ReturnType<typeof setTimeout> | null = null
 
 const router = useRouter()
 
@@ -739,7 +806,6 @@ const shareHint = computed(() => {
   if (visibility.value === 'public') return 'Anyone with the link can open this project.'
   return 'Visitors need the project password to open this project.'
 })
-
 function fileTemplate(language: Language, fileName: string) {
   if (language === 'html') {
     return `<!doctype html>
@@ -1271,6 +1337,92 @@ async function openShare() {
   }
 }
 
+async function generateForkQr(url: string) {
+  forkQrSrc.value = ''
+  try {
+    const QRCode = (await import('qrcode')).default
+    const generated = await QRCode.toDataURL(url, {
+      margin: 1,
+      width: 196,
+      color: { dark: '#09090b', light: '#ffffff' }
+    })
+    if (forkData.value?.inviteUrl === url && forkEnabled.value) forkQrSrc.value = generated
+  } catch (err) {
+    console.warn('[fork] QR code failed', err)
+  }
+}
+
+async function loadForkSettings() {
+  if (!projectId.value) return
+  forkLoading.value = true
+  forkError.value = ''
+  forkQrSrc.value = ''
+
+  try {
+    const response = await $fetch<{ fork: ForkSettings }>(
+      `/api/projects/${encodeURIComponent(projectId.value)}/fork`
+    )
+    forkData.value = response.fork
+    forkEnabled.value = response.fork.enabled
+    if (response.fork.enabled && response.fork.inviteUrl) void generateForkQr(response.fork.inviteUrl)
+  } catch (err) {
+    forkData.value = null
+    forkEnabled.value = false
+    forkError.value = messageOf(err)
+  } finally {
+    forkLoading.value = false
+  }
+}
+
+async function openFork() {
+  if (!projectId.value) return
+  forkDialog.value = true
+  forkCopied.value = ''
+  await loadForkSettings()
+}
+
+async function setForkSharing(value: boolean | undefined) {
+  if (!projectId.value || forkUpdating.value) return
+  const next = Boolean(value)
+  const previous = forkEnabled.value
+
+  forkEnabled.value = next
+  forkUpdating.value = true
+  forkError.value = ''
+  forkQrSrc.value = ''
+
+  try {
+    const response = await $fetch<{ fork: ForkSettings }>(
+      `/api/projects/${encodeURIComponent(projectId.value)}/fork`,
+      { method: 'PATCH', body: { enabled: next } }
+    )
+    forkData.value = response.fork
+    forkEnabled.value = response.fork.enabled
+    if (response.fork.enabled && response.fork.inviteUrl) await generateForkQr(response.fork.inviteUrl)
+  } catch (err) {
+    forkEnabled.value = previous
+    forkError.value = messageOf(err)
+  } finally {
+    forkUpdating.value = false
+  }
+}
+
+function showForkCopied(label: string) {
+  if (forkCopiedTimer) clearTimeout(forkCopiedTimer)
+  forkCopied.value = label
+  forkCopiedTimer = setTimeout(() => { forkCopied.value = '' }, 1500)
+}
+
+async function copyForkUrl() {
+  if (!forkData.value?.inviteUrl || !forkEnabled.value) return
+  try {
+    await navigator.clipboard.writeText(forkData.value.inviteUrl)
+    showForkCopied('Link')
+  } catch {
+    forkCopied.value = ''
+  }
+}
+
 async function copyShareUrl() {
   try {
     await navigator.clipboard.writeText(shareUrl.value)
@@ -1381,6 +1533,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  if (forkCopiedTimer) clearTimeout(forkCopiedTimer)
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('beforeunload', onBeforeUnload)
   window.removeEventListener('message', onPreviewMessage)
@@ -2087,6 +2240,117 @@ onBeforeRouteLeave(to => {
   gap: 0.75rem;
 }
 
+.fork-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.fork-toggle-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, var(--p-text-color) 3%, var(--p-content-background));
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+
+  &.is-on {
+    border-color: color-mix(in srgb, var(--p-text-color) 36%, transparent);
+    background: color-mix(in srgb, var(--p-text-color) 5%, var(--p-content-background));
+  }
+
+  :deep(.fork-switch) {
+    align-self: center;
+    flex: none;
+    margin: 0;
+  }
+}
+
+.fork-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+
+  strong {
+    font-size: 0.95em;
+    line-height: 1.35;
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.88em;
+    line-height: 1.5;
+    color: var(--p-text-muted-color);
+  }
+}
+
+.fork-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 160px;
+  color: var(--p-text-muted-color);
+  font-size: 0.88em;
+
+  .spinner {
+    width: 1.1rem;
+    height: 1.1rem;
+  }
+}
+
+.fork-error {
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--p-red-500) 32%, transparent);
+  border-radius: 0.55rem;
+  color: var(--p-red-500);
+  font-size: 0.88em;
+  line-height: 1.5;
+}
+
+.fork-qr-wrap {
+  min-height: 214px;
+  padding: 0.55rem;
+
+  img {
+    width: 196px;
+    height: 196px;
+  }
+}
+
+.fork-qr-loading {
+  color: #71717a;
+  font-size: 0.88em;
+}
+
+.fork-off-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px dashed var(--p-content-border-color);
+  border-radius: 0.6rem;
+  color: var(--p-text-muted-color);
+
+  svg {
+    flex: none;
+    width: 1rem;
+    height: 1rem;
+    margin-top: 0.1rem;
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.88em;
+    line-height: 1.55;
+  }
+}
+
 .qr-wrap {
   display: grid;
   place-items: center;
@@ -2105,7 +2369,7 @@ onBeforeRouteLeave(to => {
 
 .share-label {
   margin: 0;
-  font-size: 0.72rem;
+  font-size: 0.88em;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--p-text-muted-color);
@@ -2120,14 +2384,19 @@ onBeforeRouteLeave(to => {
     flex: 1;
     min-width: 0;
     font-family: var(--font-code);
-    font-size: 0.72rem;
+    font-size: 0.88em;
   }
 }
 
 .copied {
   margin: 0;
-  font-size: 0.72rem;
+  font-size: 0.88em;
   color: var(--p-primary-color);
+}
+
+.fork-dialog .hint,
+.share-card .hint {
+  font-size: 0.88em;
 }
 
 @media screen and (max-width: 900px) {
@@ -2175,6 +2444,19 @@ onBeforeRouteLeave(to => {
   .tree-scroll {
     flex: 1;
     max-height: none;
+  }
+}
+
+@media screen and (max-width: 700px) {
+  .save-area {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.55rem;
+
+    .status {
+      width: 100%;
+      justify-content: flex-end;
+    }
   }
 }
 </style>

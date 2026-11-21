@@ -125,6 +125,7 @@ export default defineNuxtConfig({
     '/sign': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
     '/dashboard': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
     '/new': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
+    '/fork/**': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
     '/account': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } },
     '/developers/keys': { headers: { 'X-Robots-Tag': 'noindex, nofollow' } }
   },

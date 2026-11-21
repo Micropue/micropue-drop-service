@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
 
 // 所有 schema 变更必须是可重复执行的：只新增表/列/索引，不删除、不重建已有数据。
-export const SCHEMA_VERSION = '2026-11-15-developer-platform-v1'
+export const SCHEMA_VERSION = '2026-11-21-fork-sharing-v1'
 const SCHEMA_LOCK = 'drop:developer-platform-v1'
 
 const ACCOUNTS_TABLE_SQL = `
@@ -109,6 +109,23 @@ CREATE TABLE IF NOT EXISTS \`project_deployments\` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='DROP 项目部署记录'
 `
 
+const PROJECT_FORKS_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS \`project_forks\` (
+  \`id\` CHAR(36) NOT NULL,
+  \`source_project_sid\` CHAR(36) NOT NULL COMMENT '原项目UUID',
+  \`forked_project_sid\` CHAR(36) NOT NULL COMMENT '接受后创建的项目UUID',
+  \`source_share_code\` VARCHAR(16) NOT NULL COMMENT '接受邀请时使用的分享码',
+  \`accepted_by_bits_id\` VARCHAR(64) NOT NULL COMMENT '接受复刻的 BITS userinfo.sub',
+  \`created_at\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`id\`),
+  UNIQUE KEY \`uk_project_forks_recipient\` (\`source_project_sid\`, \`accepted_by_bits_id\`),
+  UNIQUE KEY \`uk_project_forks_forked\` (\`forked_project_sid\`),
+  KEY \`idx_project_forks_source\` (\`source_project_sid\`, \`created_at\`),
+  CONSTRAINT \`fk_project_forks_source\`
+    FOREIGN KEY (\`source_project_sid\`) REFERENCES \`projects\` (\`sid\`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='DROP 项目复刻接受记录'
+`
+
 const SCHEMA_MIGRATIONS_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS \`schema_migrations\` (
   \`name\` VARCHAR(255) NOT NULL,
@@ -124,7 +141,8 @@ const DDL = [
   PROJECT_FILES_TABLE_SQL,
   PROJECT_VISITS_TABLE_SQL,
   API_KEYS_TABLE_SQL,
-  PROJECT_DEPLOYMENTS_TABLE_SQL
+  PROJECT_DEPLOYMENTS_TABLE_SQL,
+  PROJECT_FORKS_TABLE_SQL
 ]
 
 const SCHEMA_CHECKSUM = createHash('sha256').update(DDL.join('\n')).digest('hex')
@@ -146,6 +164,22 @@ async function addColumnIfMissing(
 ) {
   if (!(await hasColumn(conn, table, column))) {
     await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN ${definition}`)
+  }
+}
+
+async function addIndexIfMissing(
+  conn: PoolConnection,
+  table: string,
+  index: string,
+  definition: string
+) {
+  const [rows] = await conn.query<RowDataPacket[]>(
+    `SELECT INDEX_NAME FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1`,
+    [table, index]
+  )
+  if (!rows.length) {
+    await conn.query(`ALTER TABLE \`${table}\` ADD ${definition}`)
   }
 }
 
@@ -174,6 +208,24 @@ async function ensureCompatibilityColumns(conn: PoolConnection) {
     'projects',
     'revision',
     '`revision` INT UNSIGNED NOT NULL DEFAULT 1 AFTER `enabled`'
+  )
+  await addColumnIfMissing(
+    conn,
+    'projects',
+    'fork_enabled',
+    '`fork_enabled` TINYINT(1) NOT NULL DEFAULT 0 AFTER `folders`'
+  )
+  await addColumnIfMissing(
+    conn,
+    'projects',
+    'fork_code',
+    '`fork_code` VARCHAR(16) NULL AFTER `fork_enabled`'
+  )
+  await addIndexIfMissing(
+    conn,
+    'projects',
+    'uk_projects_fork_code',
+    'UNIQUE KEY `uk_projects_fork_code` (`fork_code`)'
   )
 
   // 兼容旧版本：把历史 private 项目转为 password，再由所有者补密码。

@@ -5,6 +5,7 @@ import { useDb } from './db'
 
 const SESSION_COOKIE = 'drop_session'
 const STATE_COOKIE = 'drop_oauth_state'
+const RETURN_COOKIE = 'drop_oauth_return'
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7
 
 export interface DropUser {
@@ -77,6 +78,37 @@ export function readOAuthState(event: H3Event) {
 
 export function clearOAuthState(event: H3Event) {
   deleteCookie(event, STATE_COOKIE, { path: '/' })
+}
+
+export function safeAuthReturn(value: unknown) {
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return ''
+  if (value.length > 1024 || value.includes('\\') || value.includes('\0')) return ''
+
+  try {
+    const url = new URL(value, 'https://drop.invalid')
+    if (url.origin !== 'https://drop.invalid') return ''
+    return `${url.pathname}${url.search}`
+  } catch {
+    return ''
+  }
+}
+
+export function setOAuthReturn(event: H3Event, returnTo: string) {
+  setCookie(event, RETURN_COOKIE, returnTo, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: secureCookie(),
+    path: '/',
+    maxAge: 600
+  })
+}
+
+export function readOAuthReturn(event: H3Event) {
+  return getCookie(event, RETURN_COOKIE)
+}
+
+export function clearOAuthReturn(event: H3Event) {
+  deleteCookie(event, RETURN_COOKIE, { path: '/' })
 }
 
 export async function createSession(event: H3Event, bitsId: string) {

@@ -1,9 +1,12 @@
 import type { H3Event } from 'h3'
 import {
   clearOAuthState,
+  clearOAuthReturn,
   createSession,
   getBitsOAuthConfig,
+  readOAuthReturn,
   readOAuthState,
+  safeAuthReturn,
   upsertAccount,
   type BitsProfile
 } from '../../../utils/auth'
@@ -22,8 +25,10 @@ export default defineEventHandler(async event => {
   const code = typeof query.code === 'string' ? query.code : ''
   const state = typeof query.state === 'string' ? query.state : ''
   const expectedState = readOAuthState(event)
+  const returnTo = safeAuthReturn(readOAuthReturn(event)) || '/account'
 
   clearOAuthState(event)
+  clearOAuthReturn(event)
 
   if (query.error) return fail(event, 'denied')
   if (!code || !state || !expectedState || state !== expectedState) return fail(event, 'state')
@@ -57,7 +62,7 @@ export default defineEventHandler(async event => {
     await upsertAccount(profile)
     await createSession(event, profile.sub)
 
-    return sendRedirect(event, '/account')
+    return sendRedirect(event, returnTo)
   } catch (err) {
     console.warn('[bits-oauth] 登录失败：', err instanceof Error ? err.message : err)
     return fail(event, 'oauth')
