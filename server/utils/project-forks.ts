@@ -1,7 +1,7 @@
 import { randomInt, randomUUID } from 'node:crypto'
 import type { H3Event } from 'h3'
 import type { RowDataPacket } from 'mysql2/promise'
-import { getSessionUser, type DropUser } from './auth'
+import { getSessionUser } from './auth'
 import { useDb } from './db'
 import {
   fileBytes,
@@ -18,7 +18,6 @@ const SHARE_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
 const SHARE_CODE_LENGTH = 12
 const MAX_PROJECTS = 100
 const FORK_SUFFIX = '-fork'
-const MAX_SLUG_LENGTH = 40
 
 interface ForkSettingsRow extends RowDataPacket {
   slug: string
@@ -52,12 +51,6 @@ interface ForkFileRow extends RowDataPacket {
   content: string
 }
 
-interface AcceptedForkRow extends RowDataPacket {
-  created_at: Date
-  forked_sid: string | null
-  forked_slug: string | null
-}
-
 export interface ForkOwner {
   username: string
   nickname: string
@@ -86,14 +79,6 @@ export interface ForkInvitation {
     username: string | null
     nickname: string | null
     avatarUrl: string | null
-    accepted: {
-      acceptedAt: string
-      project: {
-        sid: string
-        slug: string
-        path: string
-      } | null
-    } | null
   }
 }
 
@@ -106,12 +91,6 @@ export interface AcceptedFork {
     enabled: boolean
     path: string
     editorPath: string
-  }
-  source: {
-    name: string
-    slug: string
-    path: string
-    owner: ForkOwner
   }
 }
 
@@ -149,9 +128,8 @@ function forkPath(username: string, slug: string) {
   return `/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`
 }
 
-function inviteUrl(event: H3Event, username: string, slug: string, code: string) {
-  const query = new URLSearchParams({ code })
-  return `${siteBase(event)}/fork${forkPath(username, slug)}?${query.toString()}`
+function inviteUrl(event: H3Event, code: string) {
+  return `${siteBase(event)}/fork/${encodeURIComponent(code)}`
 }
 
 function ownerFromRow(row: { username: string; nickname: string; avatar_url: string }): ForkOwner {
@@ -170,7 +148,7 @@ function settingsFromRow(event: H3Event, row: ForkSettingsRow): ForkSettings {
     shareCode: code,
     owner: ownerFromRow(row),
     slug: String(row.slug),
-    inviteUrl: enabled && code ? inviteUrl(event, String(row.username), String(row.slug), code) : null
+    inviteUrl: enabled && code ? inviteUrl(event, code) : null
   }
 }
 
@@ -271,20 +249,18 @@ export async function setForkEnabled(event: H3Event, sid: string, enabled: unkno
   return getForkSettingsForOwner(event, sid)
 }
 
-export async function getForkInvite(event: H3Event, username: string, slug: string, code: unknown) {
+export async function getForkInvite(event: H3Event, code: unknown) {
   const normalizedCode = normalizeCode(code)
-  if (!username || username.length > 254 || !slug || slug.length > MAX_SLUG_LENGTH || !normalizedCode) {
-    return unavailable()
-  }
+  if (!normalizedCode) return unavailable()
 
   const [rows] = await useDb().query<ForkInviteRow[]>(
     `SELECT p.\`sid\`, p.\`name\`, p.\`slug\`, p.\`visibility\`, p.\`folders\`, p.\`updated_at\`,
             p.\`owner_bits_id\`, a.\`username\`, a.\`nickname\`, a.\`avatar_url\`
      FROM \`projects\` p
      JOIN \`accounts\` a ON a.\`bits_id\` = p.\`owner_bits_id\`
-     WHERE a.\`username\` = ? AND p.\`slug\` = ? AND p.\`fork_enabled\` = 1 AND p.\`fork_code\` = ?
+     WHERE p.\`fork_enabled\` = 1 AND p.\`fork_code\` = ?
      LIMIT 1`,
-    [username, slug, normalizedCode]
+    [normalizedCode]
   )
   const row = rows[0]
   if (!row) return unavailable()
@@ -294,31 +270,6 @@ export async function getForkInvite(event: H3Event, username: string, slug: stri
     'SELECT COUNT(*) AS `count` FROM `project_files` WHERE `project_sid` = ?',
     [row.sid]
   )
-
-  let accepted: ForkInvitation['viewer']['accepted'] = null
-  if (viewer) {
-    const [acceptedRows] = await useDb().query<AcceptedForkRow[]>(
-      `SELECT pf.\`created_at\`, p.\`sid\` AS \`forked_sid\`, p.\`slug\` AS \`forked_slug\`
-       FROM \`project_forks\` pf
-       LEFT JOIN \`projects\` p ON p.\`sid\` = pf.\`forked_project_sid\`
-       WHERE pf.\`source_project_sid\` = ? AND pf.\`accepted_by_bits_id\` = ?
-       LIMIT 1`,
-      [row.sid, viewer.bitsId]
-    )
-    const acceptedRow = acceptedRows[0]
-    if (acceptedRow) {
-      accepted = {
-        acceptedAt: acceptedRow.created_at.toISOString(),
-        project: acceptedRow.forked_sid && acceptedRow.forked_slug
-          ? {
-              sid: String(acceptedRow.forked_sid),
-              slug: String(acceptedRow.forked_slug),
-              path: forkPath(viewer.username, String(acceptedRow.forked_slug))
-            }
-          : null
-      }
-    }
-  }
 
   const folders = parseFolders(row.folders)
   const invitation: ForkInvitation = {
@@ -334,8 +285,7 @@ export async function getForkInvite(event: H3Event, username: string, slug: stri
       isOwner: viewer?.bitsId === String(row.owner_bits_id),
       username: viewer?.username || null,
       nickname: viewer?.nickname || null,
-      avatarUrl: viewer?.avatarUrl || null,
-      accepted
+      avatarUrl: viewer?.avatarUrl || null
     }
   }
 
@@ -346,21 +296,18 @@ function duplicateKey(err: unknown) {
   const value = err as { code?: string; sqlMessage?: string; message?: string }
   const message = `${value.sqlMessage || ''} ${value.message || ''}`
   if (value.code !== 'ER_DUP_ENTRY') return ''
-  if (message.includes('uk_project_forks_recipient')) return 'recipient'
   if (message.includes('uk_projects_owner_slug')) return 'slug'
   return 'other'
 }
 
-export async function acceptFork(event: H3Event, username: string, slug: string, code: unknown, requestedSlug?: unknown) {
+export async function acceptFork(event: H3Event, code: unknown, requestedSlug?: unknown) {
   const user = await requireUser(event)
   if (!user.username) {
     throw createError({ statusCode: 409, statusMessage: 'Set a username on BITS before creating a project.' })
   }
 
   const normalizedCode = normalizeCode(code)
-  if (!username || username.length > 254 || !slug || slug.length > MAX_SLUG_LENGTH || !normalizedCode) {
-    return unavailable()
-  }
+  if (!normalizedCode) return unavailable()
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const conn = await useDb().getConnection()
@@ -372,23 +319,15 @@ export async function acceptFork(event: H3Event, username: string, slug: string,
                 a.\`username\`, a.\`nickname\`, a.\`avatar_url\`
          FROM \`projects\` p
          JOIN \`accounts\` a ON a.\`bits_id\` = p.\`owner_bits_id\`
-         WHERE a.\`username\` = ? AND p.\`slug\` = ? AND p.\`fork_enabled\` = 1 AND p.\`fork_code\` = ?
+         WHERE p.\`fork_enabled\` = 1 AND p.\`fork_code\` = ?
          LIMIT 1
          FOR UPDATE`,
-        [username, slug, normalizedCode]
+        [normalizedCode]
       )
       const source = sourceRows[0]
       if (!source) unavailable()
       if (String(source.owner_bits_id) === user.bitsId) {
         throw createError({ statusCode: 403, statusMessage: 'You cannot fork your own project.' })
-      }
-
-      const [acceptedRows] = await conn.query<RowDataPacket[]>(
-        'SELECT `id` FROM `project_forks` WHERE `source_project_sid` = ? AND `accepted_by_bits_id` = ? LIMIT 1',
-        [source.sid, user.bitsId]
-      )
-      if (acceptedRows.length) {
-        throw createError({ statusCode: 409, statusMessage: 'You already accepted this fork invitation.' })
       }
 
       const [countRows] = await conn.query<RowDataPacket[]>(
@@ -446,12 +385,6 @@ export async function acceptFork(event: H3Event, username: string, slug: string,
         fileCount: files.length,
         totalBytes: fileBytes(files)
       })
-      await conn.query(
-        `INSERT INTO \`project_forks\`
-           (\`id\`, \`source_project_sid\`, \`forked_project_sid\`, \`source_share_code\`, \`accepted_by_bits_id\`)
-         VALUES (?, ?, ?, ?, ?)`,
-        [randomUUID(), source.sid, sid, normalizedCode, user.bitsId]
-      )
 
       await conn.commit()
       return {
@@ -463,20 +396,11 @@ export async function acceptFork(event: H3Event, username: string, slug: string,
           enabled: true,
           path: projectPath(user, targetSlug),
           editorPath: `/new?edit=${encodeURIComponent(sid)}`
-        },
-        source: {
-          name: String(source.name),
-          slug: String(source.slug),
-          path: forkPath(String(source.username), String(source.slug)),
-          owner: ownerFromRow(source)
         }
       } satisfies AcceptedFork
     } catch (err) {
       await conn.rollback()
       const duplicate = duplicateKey(err)
-      if (duplicate === 'recipient') {
-        throw createError({ statusCode: 409, statusMessage: 'You already accepted this fork invitation.' })
-      }
       if (duplicate === 'slug') {
         throw createError({ statusCode: 409, statusMessage: 'That fork name is already taken. Choose another name.' })
       }

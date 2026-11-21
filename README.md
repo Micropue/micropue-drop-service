@@ -137,7 +137,7 @@ The creator at `/new` matches the site navigation width (`max-width: 1300px`): t
 - The toolbar delete removes the selected file or folder (folders recursively); the rename button next to it renames the selected file or folder inline. Selection is single-item again; multi-select was removed.
 - `Save` opens the project settings dialog the first time, then saves directly on later clicks. The settings icon next to Save reopens the dialog at any time.
 - `Share` opens a QR code and the project link.
-- `Fork`, next to `Share`, opens the share-fork dialog. Its switch turns invitations on or off; when off, new invitations cannot be accepted. The dialog shows a QR code and the invitation link. Both the share code embedded in the link and the original username/slug are required. Accepting copies the project name, folders, files, visibility and password hash into the recipient's account. The recipient can choose a unique fork URL, initially suggested as `<original-slug>-fork`; a duplicate name is rejected so the field can show an inline error. Each signed-in user may accept an invitation once, and owners cannot fork their own project.
+- `Fork`, next to `Share`, opens the share-fork dialog. Its switch turns invitations on or off; when off, new invitations cannot be accepted. The dialog shows a QR code and the invitation link, whose only credential is a 12-character invitation code. Accepting copies the project name, folders, files, visibility and password hash into the recipient's account, then opens the new project in the editor. The recipient can choose a unique fork URL, initially suggested as `<original-slug>-fork`; a duplicate name is rejected so the field can show an inline error. The same invitation can create multiple independent forks, no fork history is recorded, and owners cannot fork their own project.
 - The preview button next to the settings icon opens a right-side iframe preview of the current HTML file. Project CSS and JS are inlined, internal HTML links navigate inside the preview, the iframe is sandboxed, and the refresh button rebuilds it after edits.
 - The dashboard lists your projects 20 per page with search (name or URL), sorting (last updated / newest / name), a weekly traffic sparkline, a visibility icon, an on/off switch, `Edit` and `Delete`.
   - Traffic counts unique HTML visitors per day (IP + user agent hash), keeps only the current week starting Sunday, and opens a full line chart when clicked.
@@ -173,7 +173,7 @@ The build also emits `.output/server/migrate.mjs`, so production can run the mig
 node --env-file-if-exists=/sdb/drop.micropue.com.cn.env server/migrate.mjs
 ```
 
-New tables are `api_keys`, `project_deployments`, `project_forks` and `schema_migrations`; existing `projects` gains `revision`, `folders`, `enabled`, `fork_enabled` and `fork_code`. `project_forks` records accepted invitations (source project, recipient BITS id, share code, created fork and timestamp). No table is dropped or rebuilt.
+New tables are `api_keys`, `project_deployments` and `schema_migrations`; existing `projects` gains `revision`, `folders`, `enabled`, `fork_enabled` and `fork_code`. Fork invitations are resolved from the unique `fork_code`; no relationship between the source project and accepted forks is stored. No table is dropped or rebuilt.
 
 ## SEO and AI Discovery
 
@@ -296,12 +296,12 @@ app/
   components/    BrandLogo.vue, TechText.vue, DotField.vue, UserAvatar.vue, CodeEditor.client.vue, FileTypeIcon.vue
   composables/   useAuthUser.ts, useNoIndex.ts
   layouts/       default.vue (header + consent)
-  pages/         index.vue, account.vue, dashboard.vue, new.vue, privacy.vue, sign.vue, fork/[username]/[slug].vue
+  pages/         index.vue, account.vue, dashboard.vue, new.vue, privacy.vue, sign.vue, fork/[code].vue
 public/          favicon.ico, robots.txt, file-icons/ (Material Icon Theme, MIT)
 server/
   api/auth/      bits.get.ts, bits/callback.get.ts, me.get.ts, logout.post.ts
   api/projects/  index.get.ts, index.post.ts, [sid].get.ts, [sid].put.ts, [sid].patch.ts, [sid].delete.ts, [sid]/fork.get.ts, [sid]/fork.patch.ts
-  api/fork-invites/ [username]/[slug]/index.get.ts, [username]/[slug]/accept.post.ts
+  api/fork-invites/ [code].get.ts, [code].post.ts
   api/developer/ keys/ (create, list, revoke API keys)
   api/unlock/    [sid].post.ts (password unlock)
   api/           health.get.ts (development only), github/star.get.ts

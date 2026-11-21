@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
 
 // 所有 schema 变更必须是可重复执行的：只新增表/列/索引，不删除、不重建已有数据。
-export const SCHEMA_VERSION = '2026-11-21-fork-sharing-v1'
+export const SCHEMA_VERSION = '2026-11-21-fork-sharing-v2'
 const SCHEMA_LOCK = 'drop:developer-platform-v1'
 
 const ACCOUNTS_TABLE_SQL = `
@@ -109,23 +109,6 @@ CREATE TABLE IF NOT EXISTS \`project_deployments\` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='DROP 项目部署记录'
 `
 
-const PROJECT_FORKS_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS \`project_forks\` (
-  \`id\` CHAR(36) NOT NULL,
-  \`source_project_sid\` CHAR(36) NOT NULL COMMENT '原项目UUID',
-  \`forked_project_sid\` CHAR(36) NOT NULL COMMENT '接受后创建的项目UUID',
-  \`source_share_code\` VARCHAR(16) NOT NULL COMMENT '接受邀请时使用的分享码',
-  \`accepted_by_bits_id\` VARCHAR(64) NOT NULL COMMENT '接受复刻的 BITS userinfo.sub',
-  \`created_at\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (\`id\`),
-  UNIQUE KEY \`uk_project_forks_recipient\` (\`source_project_sid\`, \`accepted_by_bits_id\`),
-  UNIQUE KEY \`uk_project_forks_forked\` (\`forked_project_sid\`),
-  KEY \`idx_project_forks_source\` (\`source_project_sid\`, \`created_at\`),
-  CONSTRAINT \`fk_project_forks_source\`
-    FOREIGN KEY (\`source_project_sid\`) REFERENCES \`projects\` (\`sid\`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='DROP 项目复刻接受记录'
-`
-
 const SCHEMA_MIGRATIONS_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS \`schema_migrations\` (
   \`name\` VARCHAR(255) NOT NULL,
@@ -141,8 +124,7 @@ const DDL = [
   PROJECT_FILES_TABLE_SQL,
   PROJECT_VISITS_TABLE_SQL,
   API_KEYS_TABLE_SQL,
-  PROJECT_DEPLOYMENTS_TABLE_SQL,
-  PROJECT_FORKS_TABLE_SQL
+  PROJECT_DEPLOYMENTS_TABLE_SQL
 ]
 
 const SCHEMA_CHECKSUM = createHash('sha256').update(DDL.join('\n')).digest('hex')

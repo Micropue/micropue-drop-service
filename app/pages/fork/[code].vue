@@ -24,15 +24,10 @@
 
     <article v-else-if="invitation" class="invite-content">
       <header class="invite-head">
-        <h1 v-if="acceptedResult || invitation.viewer.accepted">Fork complete</h1>
-        <h1 v-else-if="invitation.viewer.isOwner">This project is already yours</h1>
+        <h1 v-if="invitation.viewer.isOwner">This project is already yours</h1>
         <h1 v-else>Create a new fork</h1>
 
-        <p v-if="acceptedResult || invitation.viewer.accepted" class="lede invite-lede">
-          A complete copy of <strong>{{ invitation.name }}</strong> is now in your account.
-          The original project has not been changed.
-        </p>
-        <p v-else-if="invitation.viewer.isOwner" class="lede invite-lede">
+        <p v-if="invitation.viewer.isOwner" class="lede invite-lede">
           Forking your own project would create a duplicate. Open the editor to keep working
           on the original instead.
         </p>
@@ -45,39 +40,7 @@
       <div class="invite-rule" aria-hidden="true"></div>
 
       <section class="action-panel">
-        <template v-if="acceptedResult || invitation.viewer.accepted">
-          <div v-if="acceptedProject" class="field-block">
-            <span class="field-label">Your fork *</span>
-            <div class="read-field project-destination">
-              <CodeBranch aria-hidden="true" />
-              <code>{{ acceptedProject.path }}</code>
-            </div>
-          </div>
-          <div class="action-row action-row--end">
-            <Button v-if="acceptedProject" as-child v-slot="slotProps">
-              <a :href="liveProjectUrl(acceptedProject.path)" target="_blank" rel="noopener noreferrer"
-                :class="slotProps.class" v-bind="slotProps.a11yAttrs">
-                <ArrowUpRight aria-hidden="true" />
-                <span>Open project</span>
-              </a>
-            </Button>
-            <Button v-if="acceptedProject" as-child v-slot="slotProps" severity="secondary">
-              <NuxtLink :to="`/new?edit=${encodeURIComponent(acceptedProject.sid)}`" :class="slotProps.class"
-                v-bind="slotProps.a11yAttrs">
-                <CodeBranch aria-hidden="true" />
-                <span>Edit</span>
-              </NuxtLink>
-            </Button>
-            <Button as-child v-slot="slotProps" severity="secondary" text>
-              <NuxtLink to="/dashboard" :class="slotProps.class" v-bind="slotProps.a11yAttrs">
-                <span>Dashboard</span>
-                <ArrowRight aria-hidden="true" />
-              </NuxtLink>
-            </Button>
-          </div>
-        </template>
-
-        <template v-else-if="invitation.viewer.isOwner">
+        <template v-if="invitation.viewer.isOwner">
           <div class="owner-row">
             <UserAvatar :src="invitation.owner.avatarUrl" :size="42" />
             <div class="owner-copy">
@@ -173,7 +136,6 @@
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import ArrowRight from '@primeicons/vue/arrow-right'
-import ArrowUpRight from '@primeicons/vue/arrow-up-right'
 import CodeBranch from '@primeicons/vue/code-branch'
 import ExclamationTriangle from '@primeicons/vue/exclamation-triangle'
 import File from '@primeicons/vue/file'
@@ -190,12 +152,6 @@ interface ForkOwner {
   avatarUrl: string
 }
 
-interface AcceptedForkProject {
-  sid: string
-  slug: string
-  path: string
-}
-
 interface ForkInvitation {
   name: string
   slug: string
@@ -210,80 +166,42 @@ interface ForkInvitation {
     username: string | null
     nickname: string | null
     avatarUrl: string | null
-    accepted: {
-      acceptedAt: string
-      project: AcceptedForkProject | null
-    } | null
   }
 }
 
 interface AcceptedFork {
   project: {
     sid: string
-    name: string
-    slug: string
-    visibility: Visibility
-    enabled: boolean
-    path: string
     editorPath: string
-  }
-  source: {
-    name: string
-    slug: string
-    path: string
-    owner: ForkOwner
   }
 }
 
 const route = useRoute()
-const config = useRuntimeConfig()
 
-const username = computed(() => String(route.params.username || ''))
-const slug = computed(() => String(route.params.slug || ''))
-const code = computed(() => typeof route.query.code === 'string' ? route.query.code.trim().toUpperCase() : '')
-const invitationUrl = computed(() => {
-  const query = code.value ? `?code=${encodeURIComponent(code.value)}` : ''
-  return `/api/fork-invites/${encodeURIComponent(username.value)}/${encodeURIComponent(slug.value)}${query}`
-})
+const code = computed(() => String(route.params.code || '').trim().toUpperCase())
+const invitationUrl = computed(() => `/api/fork-invites/${encodeURIComponent(code.value)}`)
 
 const { data, pending, error } = await useFetch<{ invitation: ForkInvitation }>(invitationUrl, {
-  key: `fork-invite-${username.value}-${slug.value}-${code.value}`
+  key: `fork-invite-${code.value}`
 })
 
 const invitation = computed(() => data.value?.invitation || null)
 const unavailable = computed(() => Boolean(error.value) || !invitation.value)
 const loginUrl = computed(() => `/api/auth/bits?return=${encodeURIComponent(route.fullPath)}`)
-const contentUrl = computed(() => String(config.public.contentUrl).replace(/\/+$/, ''))
 
 const accepting = ref(false)
 const acceptError = ref('')
 const forkNameError = ref('')
-const acceptedResult = ref<AcceptedFork | null>(null)
 const forkName = ref('')
 
 watch(() => invitation.value?.slug, sourceSlug => {
   if (sourceSlug && !forkName.value) forkName.value = `${sourceSlug}-fork`
 }, { immediate: true })
 
-const acceptedProject = computed<AcceptedForkProject | null>(() => {
-  if (acceptedResult.value) {
-    return {
-      sid: acceptedResult.value.project.sid,
-      slug: acceptedResult.value.project.slug,
-      path: acceptedResult.value.project.path
-    }
-  }
-  return invitation.value?.viewer.accepted?.project || null
-})
-
 useHead({
   title: computed(() => invitation.value ? `Fork ${invitation.value.name}` : 'Fork invitation')
 })
 useNoIndex()
-
-function liveProjectUrl(path: string) {
-  return `${contentUrl.value}${path}/`
-}
 
 function onForkNameInput(value: string) {
   forkNameError.value = ''
@@ -319,10 +237,11 @@ async function acceptInvitation() {
   forkNameError.value = ''
 
   try {
-    acceptedResult.value = await $fetch<AcceptedFork>(
-      `/api/fork-invites/${encodeURIComponent(username.value)}/${encodeURIComponent(slug.value)}/accept`,
-      { method: 'POST', body: { code: code.value, slug: targetSlug || undefined } }
-    )
+    const result = await $fetch<AcceptedFork>(invitationUrl.value, {
+      method: 'POST',
+      body: { slug: targetSlug || undefined }
+    })
+    await navigateTo(result.project.editorPath, { replace: true })
   } catch (err) {
     const message = messageOf(err)
     if ([400, 409].includes(statusOf(err)) && /(fork name|project url|already taken)/i.test(message)) {
@@ -417,16 +336,16 @@ async function acceptInvitation() {
   overflow-wrap: anywhere;
 }
 
-.invite-lede {
-  max-width: 100%;
-  margin-top: 0.75rem;
+.lede {
+  margin: 0;
+  color: var(--p-text-muted-color);
   font-size: 0.92em;
   line-height: 1.7;
 }
 
-.lede {
-  margin: 0;
-  color: var(--p-text-muted-color);
+.invite-head .invite-lede {
+  max-width: 100%;
+  margin-top: 2rem;
   font-size: 0.92em;
   line-height: 1.7;
 }
@@ -653,16 +572,6 @@ async function acceptInvitation() {
 .action-row--end {
   justify-content: flex-end;
   width: 100%;
-}
-
-.project-destination {
-  flex-direction: row;
-  gap: 0.55rem;
-  width: 100%;
-  margin-top: 0;
-  padding: 0.8rem 0.9rem;
-  border-radius: 0.42rem;
-  background: var(--p-content-background);
 }
 
 .signed-out-action {
