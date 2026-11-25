@@ -78,7 +78,7 @@ code {
   background: color-mix(in srgb, currentColor 9%, transparent);
   color: var(--p-text-color);
   font-family: var(--font-code);
-  font-size: 0.88em;
+  font-size: 1em;
 }
 
 strong {

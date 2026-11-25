@@ -149,7 +149,7 @@ The editor is available at ${siteUrl}/new and the project dashboard at ${siteUrl
 - Runtime: Node.js 20.12 or newer
 - Transport: local process over stdio
 - Start command: \`npx -y @micropue/drop-mcp\`
-- Required environment: \`DROP_API_KEY\`; use \`DROP_ALLOWED_ROOTS\` to restrict readable filesystem roots.
+- Required environment: \`DROP_API_KEY\`. \`DROP_ALLOWED_ROOTS\` is optional and defaults to the user home directory.
 - Documentation: ${siteUrl}/developers#mcp
 
 ### DROP CLI

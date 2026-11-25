@@ -31,30 +31,6 @@
       </div>
     </header>
 
-    <nav class="category-strip" aria-label="MCP, CLI, API">
-      <a href="#mcp">
-        <span class="category-index">01</span>
-        <span>
-          <strong>{{ messages.categoryLabels.mcp }}</strong>
-          <small>{{ messages.categoryLabels.mcpSummary }}</small>
-        </span>
-      </a>
-      <a href="#cli">
-        <span class="category-index">02</span>
-        <span>
-          <strong>{{ messages.categoryLabels.cli }}</strong>
-          <small>{{ messages.categoryLabels.cliSummary }}</small>
-        </span>
-      </a>
-      <a href="#api">
-        <span class="category-index">03</span>
-        <span>
-          <strong>{{ messages.categoryLabels.api }}</strong>
-          <small>{{ messages.categoryLabels.apiSummary }}</small>
-        </span>
-      </a>
-    </nav>
-
     <div class="docs-layout">
       <aside class="docs-sidebar">
         <nav class="side-nav" aria-label="MCP, CLI, API">
@@ -474,7 +450,7 @@ const mcpInstallCommand = 'npx -y @micropue/drop-mcp'
 const codexConfig = `[mcp_servers.drop]
 command = "npx"
 args = ["-y", "@micropue/drop-mcp"]
-env = { DROP_API_KEY = "YOUR_DROP_API_KEY", DROP_ALLOWED_ROOTS = "/absolute/path/to/sites" }
+env = { DROP_API_KEY = "YOUR_DROP_API_KEY" }
 startup_timeout_sec = 20`
 
 const jsonConfig = `{
@@ -483,8 +459,7 @@ const jsonConfig = `{
       "command": "npx",
       "args": ["-y", "@micropue/drop-mcp"],
       "env": {
-        "DROP_API_KEY": "YOUR_DROP_API_KEY",
-        "DROP_ALLOWED_ROOTS": "/absolute/path/to/sites"
+        "DROP_API_KEY": "YOUR_DROP_API_KEY"
       }
     }
   }
@@ -529,6 +504,7 @@ const errorExample = `{
   max-width: 1300px;
   margin: 0 auto;
   padding: 2.5rem 0 6rem;
+  font-size: 1em;
 }
 
 .docs-header {
@@ -552,7 +528,7 @@ h1 {
   max-width: 720px;
   margin: 0;
   color: var(--p-text-muted-color);
-  font-size: 0.96rem;
+  font-size: 1em;
   line-height: 1.75;
 }
 
@@ -568,6 +544,7 @@ h1 {
     align-items: center;
     gap: 0.4rem;
     min-height: 36px;
+    font-size: 1em;
     white-space: nowrap;
     text-decoration: none;
   }
@@ -587,7 +564,7 @@ h1 {
   border: 1px solid var(--p-content-border-color);
   border-radius: 999px;
   color: var(--p-text-muted-color);
-  font-size: 0.78rem;
+  font-size: 1em;
   transition: border-color 0.15s, color 0.15s;
 
   &:focus-within,
@@ -619,62 +596,11 @@ h1 {
   }
 }
 
-.category-strip {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 2rem;
-  overflow: hidden;
-  border: 1px solid var(--p-content-border-color);
-  border-radius: 0.8rem;
-
-  a {
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
-    min-width: 0;
-    padding: 0.9rem 1rem;
-    color: var(--p-text-color);
-    text-decoration: none;
-    transition: background 0.15s;
-
-    & + a {
-      border-left: 1px solid var(--p-content-border-color);
-    }
-
-    &:hover,
-    &:focus-visible {
-      background: var(--p-content-hover-background);
-    }
-
-    strong,
-    small {
-      display: block;
-    }
-
-    strong {
-      font-size: 0.84rem;
-    }
-
-    small {
-      margin-top: 0.18rem;
-      color: var(--p-text-muted-color);
-      font-size: 0.74rem;
-      line-height: 1.35;
-    }
-  }
-}
-
-.category-index {
-  color: var(--p-text-muted-color);
-  font-family: var(--font-code);
-  font-size: 0.68rem;
-}
-
 .docs-layout {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
   gap: clamp(2rem, 5vw, 4rem);
-  margin-top: 3rem;
+  margin-top: 2.5rem;
 }
 
 .docs-sidebar {
@@ -701,7 +627,7 @@ h1 {
     display: block;
     padding: 0.28rem 0;
     color: var(--p-text-muted-color);
-    font-size: 0.8rem;
+    font-size: 1em;
     line-height: 1.45;
     text-decoration: none;
 
@@ -722,13 +648,13 @@ h1 {
   p {
     margin: 0.45rem 0 0.7rem;
     color: var(--p-text-muted-color);
-    font-size: 0.74rem;
+    font-size: 1em;
     line-height: 1.6;
   }
 
   a {
     color: var(--p-text-color);
-    font-size: 0.74rem;
+    font-size: 1em;
     text-decoration: none;
   }
 }
@@ -761,7 +687,7 @@ h1 {
 
   h4 {
     margin: 0;
-    font-size: 0.82rem;
+    font-size: 1em;
     font-weight: 500;
   }
 
@@ -791,7 +717,7 @@ h1 {
 .config-client {
   color: var(--p-text-muted-color);
   font-family: var(--font-code);
-  font-size: 0.7rem;
+  font-size: 1em;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -813,7 +739,7 @@ h1 {
   border-radius: 999px;
   color: var(--p-text-muted-color);
   font-family: var(--font-code);
-  font-size: 0.65rem;
+  font-size: 1em;
 }
 
 .repo-link {
@@ -827,7 +753,7 @@ h1 {
   border: 1px solid var(--p-content-border-color);
   border-radius: 0.55rem;
   color: var(--p-text-muted-color);
-  font-size: 0.75rem;
+  font-size: 1em;
   text-decoration: none;
   transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
 
@@ -835,7 +761,7 @@ h1 {
     overflow-wrap: anywhere;
     color: var(--p-text-color);
     font-family: var(--font-code);
-    font-size: 0.75rem;
+    font-size: 1em;
   }
 
   &:hover,
@@ -872,7 +798,7 @@ h1 {
   display: flex;
   flex-direction: column;
   color: var(--p-text-color);
-  font-size: 0.82rem;
+  font-size: 1em;
   line-height: 1.65;
   text-decoration: none;
   transition: background 0.15s, border-color 0.15s;
@@ -897,7 +823,7 @@ h1 {
   display: block;
   margin-top: auto;
   padding-top: 0.85rem;
-  font-size: 0.76rem;
+  font-size: 1em;
 }
 
 .callout {
@@ -906,7 +832,7 @@ h1 {
   border-left: 2px solid var(--p-text-color);
   background: color-mix(in srgb, var(--p-text-color) 4%, var(--p-content-background));
   color: var(--p-text-muted-color);
-  font-size: 0.82rem;
+  font-size: 1em;
   line-height: 1.7;
 }
 
@@ -921,7 +847,7 @@ h1 {
     border: 1px solid var(--p-content-border-color);
     border-radius: 0.3rem;
     font-family: var(--font-code);
-    font-size: 0.74rem;
+    font-size: 1em;
   }
 }
 
@@ -941,7 +867,7 @@ h1 {
     display: block;
     margin-bottom: 0.35rem;
     color: var(--p-text-muted-color);
-    font-size: 0.7rem;
+    font-size: 1em;
   }
 
   :deep(strong),
@@ -949,7 +875,7 @@ h1 {
     display: inline;
     overflow-wrap: anywhere;
     color: var(--p-text-color);
-    font-size: 0.82rem;
+    font-size: 1em;
   }
 }
 
@@ -970,7 +896,7 @@ h1 {
 
     p {
       margin: 0.25rem 0 0;
-      font-size: 0.84rem;
+      font-size: 1em;
     }
   }
 }
@@ -979,7 +905,7 @@ h1 {
   flex: none;
   color: var(--p-text-muted-color);
   font-family: var(--font-code);
-  font-size: 0.68rem;
+  font-size: 1em;
 }
 
 .config-card {
@@ -987,7 +913,7 @@ h1 {
 
   >p {
     margin: 0;
-    font-size: 0.76rem;
+    font-size: 1em;
     line-height: 1.65;
   }
 }
@@ -1015,7 +941,7 @@ h1 {
     padding: 0.75rem;
     border: 1px solid var(--p-content-border-color);
     border-radius: 0.6rem;
-    font-size: 0.78rem;
+    font-size: 1em;
   }
 }
 
@@ -1029,7 +955,7 @@ table {
   width: 100%;
   min-width: 620px;
   border-collapse: collapse;
-  font-size: 0.82rem;
+  font-size: 1em;
 
   th,
   td {
@@ -1057,7 +983,7 @@ table {
 
 .table-note {
   margin-top: 0.7rem;
-  font-size: 0.8rem;
+  font-size: 1em;
 }
 
 .limits-grid {
@@ -1084,7 +1010,7 @@ table {
   span {
     margin-top: 0.2rem;
     color: var(--p-text-muted-color);
-    font-size: 0.72rem;
+    font-size: 1em;
   }
 }
 
@@ -1094,7 +1020,7 @@ table {
 
   li {
     margin: 0.35rem 0;
-    font-size: 0.86rem;
+    font-size: 1em;
   }
 }
 
@@ -1111,14 +1037,14 @@ table {
     flex: none;
     color: var(--p-text-muted-color);
     font-family: var(--font-code);
-    font-size: 0.65rem;
+    font-size: 1em;
     letter-spacing: 0.1em;
   }
 
   code {
     overflow-wrap: anywhere;
     font-family: var(--font-code);
-    font-size: 0.9rem;
+    font-size: 1em;
   }
 }
 
@@ -1134,7 +1060,7 @@ table {
   p {
     margin: 0;
     color: var(--p-text-muted-color);
-    font-size: 0.78rem;
+    font-size: 1em;
   }
 
   div {
@@ -1145,7 +1071,7 @@ table {
 
   a {
     color: var(--p-text-muted-color);
-    font-size: 0.78rem;
+    font-size: 1em;
     text-decoration: none;
 
     &:hover,
@@ -1202,15 +1128,6 @@ table {
 @media screen and (max-width: 700px) {
   .docs-sidebar {
     display: none;
-  }
-
-  .category-strip {
-    grid-template-columns: 1fr;
-
-    a+a {
-      border-top: 1px solid var(--p-content-border-color);
-      border-left: 0;
-    }
   }
 
   .feature-grid,

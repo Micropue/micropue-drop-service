@@ -108,15 +108,15 @@ const ja: DocsContent = {
     quickstartTitle: 'クイックスタート',
     steps: [
       ['API キーを作成', '[API Keys](/developers/keys) を開き、必要なスコープを持つキーを作成します。完全なキーは一度だけ表示されます。'],
-      ['MCP クライアントを設定', 'Node.js を用意して Drop MCP を追加し、クライアントの環境に `DROP_API_KEY` と `DROP_ALLOWED_ROOTS` を設定します。'],
+      ['MCP クライアントを設定', 'Node.js を用意して Drop MCP を追加し、`DROP_API_KEY` を設定します。`DROP_ALLOWED_ROOTS` は任意で、デフォルトはユーザーのホームディレクトリです。'],
       ['クライアントから公開', '最初に `drop_whoami` を呼び、次に `drop_publish_site` で公開します。ツールが返した `url` だけを信頼してください。']
     ],
     clientsTitle: 'クライアント設定',
-    clientsBody: 'どのクライアントも同じローカルコマンドを起動します。`DROP_ALLOWED_ROOTS` には専用の絶対パスのサイトディレクトリを指定し、MCP プロセスが無関係なローカルファイルを読めないようにしてください。',
+    clientsBody: 'どのクライアントも同じローカルコマンドを起動し、必須なのは `DROP_API_KEY` だけです。ローカル公開はデフォルトでユーザーのホームディレクトリに限定されます。範囲を狭めるか変更する場合だけ、任意の `DROP_ALLOWED_ROOTS` を設定してください。',
     codexCard: {
       client: 'Codex',
       file: '`~/.codex/config.toml`',
-      note: 'プレースホルダーのキーとディレクトリを自分の値に置き換えてください。'
+      note: 'プレースホルダーのキーを自分のキーに置き換えてください。デフォルトのホームディレクトリ範囲を変更する場合だけ、`DROP_ALLOWED_ROOTS` を追加します。'
     },
     jsonCard: {
       client: 'Claude Desktop · Cursor',
@@ -124,7 +124,7 @@ const ja: DocsContent = {
       note: 'Claude Desktop は `claude_desktop_config.json` を使用します。Cursor は `~/.cursor/mcp.json` またはプロジェクト内の `.cursor/mcp.json` に対応しています。'
     },
     restartNote: '**再起動が必要です。** 設定を変更したら MCP クライアント全体を再起動してください。',
-    pathsNote: '**パスリスト。** Windows では `;`、macOS と Linux では `:` で複数の許可ルートを区切ります。',
+    pathsNote: '**任意のパス範囲。** デフォルトでは、Drop MCP はユーザーのホームディレクトリから読み取ります。`DROP_ALLOWED_ROOTS` を設定する場合は、Windows では `;`、macOS と Linux では `:` で複数のルートを区切ります。',
     toolsTitle: 'ツール',
     toolColumns: ['ツール', 'アクセス', '用途', '主なパラメータ'],
     toolRows: [
@@ -140,7 +140,7 @@ const ja: DocsContent = {
       ['`DROP_API_KEY`', 'はい', 'なし', 'DROP パーソナル API キー。'],
       ['`DROP_API_BASE`', 'いいえ', '`https://drop.micropue.com.cn/v1`', 'API のベース URL。'],
       ['`DROP_REQUEST_TIMEOUT_MS`', 'いいえ', '`20000`', 'リクエストタイムアウト。1,000〜120,000 ミリ秒。'],
-      ['`DROP_ALLOWED_ROOTS`', 'いいえ', 'MCP プロセスの作業ディレクトリ', 'ローカルサイトの公開を許可するファイルシステムルート。'],
+      ['`DROP_ALLOWED_ROOTS`', 'いいえ', 'ユーザーのホームディレクトリ（macOS では `/Users/{username}`）', 'ローカルサイトの公開範囲を指定する任意のルート。'],
       ['`DROP_ENV_FILE`', 'いいえ', 'プロジェクトルートの `.env`', 'ローカル開発用の任意の env ファイル。']
     ],
     limitsTitle: '制限と安全性',
@@ -154,7 +154,7 @@ const ja: DocsContent = {
       '小文字拡張子の `.html`、`.css`、`.js` のみ受け付けます。',
       '各ファイルは有効な UTF-8 テキストである必要があります。隠しファイルと `node_modules` はスキップされます。',
       '`path` でディレクトリを公開する場合、シンボリックリンクは拒否されます。',
-      '`DROP_ALLOWED_ROOTS` は可能な限り狭くし、ホームディレクトリやディスク全体を指定しないでください。',
+      '公開範囲はデフォルトでユーザーのホームディレクトリに限定されます。サイトが専用フォルダーにある場合は、`DROP_ALLOWED_ROOTS` で範囲を絞り込めます。',
       '実際の API キーやローカルの `.env` をコミットしないでください。漏えいの疑いがあるキーは失効させてください。'
     ],
     troubleshootingTitle: 'トラブルシューティング',

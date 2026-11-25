@@ -106,15 +106,15 @@ const en = {
     quickstartTitle: 'Quick start',
     steps: [
       ['Create an API key', 'Open [API Keys](/developers/keys) and create a key with the required scopes. The key is shown only once.'],
-      ['Configure your MCP client', 'Add Drop MCP with Node.js installed and set `DROP_API_KEY` and `DROP_ALLOWED_ROOTS` in the client environment.'],
+      ['Configure your MCP client', 'Add Drop MCP with Node.js installed and set `DROP_API_KEY`. `DROP_ALLOWED_ROOTS` is optional and defaults to your home directory.'],
       ['Ask the client to publish', 'Call `drop_whoami` first, then publish with `drop_publish_site`. Trust only the `url` returned by the tool.']
     ],
     clientsTitle: 'Client configuration',
-    clientsBody: 'All clients start the same local command. Set `DROP_ALLOWED_ROOTS` to a dedicated absolute sites directory so the MCP process cannot read unrelated local files.',
+    clientsBody: 'All clients start the same local command. Only `DROP_API_KEY` is required. Local publishing is scoped to your home directory by default; set the optional `DROP_ALLOWED_ROOTS` only when you want to narrow or change that scope.',
     codexCard: {
       client: 'Codex',
       file: '`~/.codex/config.toml`',
-      note: 'Replace the placeholder key and directory with your own values.'
+      note: 'Replace the placeholder key with your own. Add `DROP_ALLOWED_ROOTS` only when you want to override the default home-directory scope.'
     },
     jsonCard: {
       client: 'Claude Desktop · Cursor',
@@ -122,7 +122,7 @@ const en = {
       note: 'Claude Desktop uses `claude_desktop_config.json`. Cursor supports `~/.cursor/mcp.json` or a project-level `.cursor/mcp.json`.'
     },
     restartNote: '**Restart required.** Restart the entire MCP client after changing its configuration.',
-    pathsNote: '**Path lists.** Separate multiple allowed roots with `;` on Windows and `:` on macOS or Linux.',
+    pathsNote: '**Optional path scope.** By default, Drop MCP reads from your home directory. If you set `DROP_ALLOWED_ROOTS`, separate multiple roots with `;` on Windows and `:` on macOS or Linux.',
     toolsTitle: 'Tools',
     toolColumns: ['Tool', 'Access', 'Purpose', 'Key parameters'],
     toolRows: [
@@ -138,7 +138,7 @@ const en = {
       ['`DROP_API_KEY`', 'Yes', 'None', 'Personal DROP API key.'],
       ['`DROP_API_BASE`', 'No', '`https://drop.micropue.com.cn/v1`', 'API base URL.'],
       ['`DROP_REQUEST_TIMEOUT_MS`', 'No', '`20000`', 'Request timeout from 1,000 to 120,000 milliseconds.'],
-      ['`DROP_ALLOWED_ROOTS`', 'No', 'MCP process working directory', 'Filesystem roots from which local sites may be published.'],
+      ['`DROP_ALLOWED_ROOTS`', 'No', 'User home directory (`/Users/{username}` on macOS)', 'Optional filesystem roots from which local sites may be published.'],
       ['`DROP_ENV_FILE`', 'No', 'Project-root `.env`', 'Optional env file location for local development.']
     ],
     limitsTitle: 'Limits and safety',
@@ -152,7 +152,7 @@ const en = {
       'Only lowercase `.html`, `.css` and `.js` files are accepted.',
       'Every file must be valid UTF-8 text. Hidden files and `node_modules` are skipped.',
       'Symbolic links are rejected when publishing a directory with `path`.',
-      'Use the narrowest `DROP_ALLOWED_ROOTS` possible and never point it at your home directory or an entire disk.',
+      'Publishing is limited to the user home directory by default. Narrow the scope with `DROP_ALLOWED_ROOTS` when your sites live in a dedicated folder.',
       'Never commit a real API key or local `.env` file. Revoke any key that may have leaked.'
     ],
     troubleshootingTitle: 'Troubleshooting',

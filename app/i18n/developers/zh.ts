@@ -108,15 +108,15 @@ const zh: DocsContent = {
     quickstartTitle: '快速开始',
     steps: [
       ['创建 API Key', '打开 [API Keys](/developers/keys)，创建包含所需权限的密钥。完整密钥只会显示一次。'],
-      ['配置 MCP 客户端', '安装 Node.js 后添加 Drop MCP，并在客户端环境中设置 `DROP_API_KEY` 与 `DROP_ALLOWED_ROOTS`。'],
+      ['配置 MCP 客户端', '安装 Node.js 后添加 Drop MCP，并设置 `DROP_API_KEY`。`DROP_ALLOWED_ROOTS` 为可选项，默认使用用户主目录。'],
       ['让客户端执行发布', '先调用 `drop_whoami`，再使用 `drop_publish_site` 发布。只信任工具返回的 `url`。']
     ],
     clientsTitle: '客户端配置',
-    clientsBody: '所有客户端启动的都是同一个本地命令。将 `DROP_ALLOWED_ROOTS` 设置为专用的绝对站点目录，避免 MCP 进程读取无关的本地文件。',
+    clientsBody: '所有客户端启动的都是同一个本地命令，只有 `DROP_API_KEY` 是必填项。默认情况下，本地发布范围限制为用户主目录；如需收窄或更改范围，再设置可选的 `DROP_ALLOWED_ROOTS`。',
     codexCard: {
       client: 'Codex',
       file: '`~/.codex/config.toml`',
-      note: '将占位密钥和目录替换为你自己的值。'
+      note: '只需将占位密钥替换为你自己的密钥。如需更改默认的用户主目录范围，再添加 `DROP_ALLOWED_ROOTS`。'
     },
     jsonCard: {
       client: 'Claude Desktop · Cursor',
@@ -124,7 +124,7 @@ const zh: DocsContent = {
       note: 'Claude Desktop 使用 `claude_desktop_config.json`。Cursor 支持 `~/.cursor/mcp.json` 或项目内的 `.cursor/mcp.json`。'
     },
     restartNote: '**需要重启。** 修改配置后请重启整个 MCP 客户端。',
-    pathsNote: '**路径列表。** Windows 使用 `;`，macOS 和 Linux 使用 `:` 分隔多个允许目录。',
+    pathsNote: '**可选路径范围。** 默认情况下，Drop MCP 从用户主目录读取文件。设置 `DROP_ALLOWED_ROOTS` 时，Windows 使用 `;`，macOS 和 Linux 使用 `:` 分隔多个目录。',
     toolsTitle: '工具',
     toolColumns: ['工具', '权限', '用途', '主要参数'],
     toolRows: [
@@ -140,7 +140,7 @@ const zh: DocsContent = {
       ['`DROP_API_KEY`', '是', '无', 'DROP 个人 API Key。'],
       ['`DROP_API_BASE`', '否', '`https://drop.micropue.com.cn/v1`', 'API 基础地址。'],
       ['`DROP_REQUEST_TIMEOUT_MS`', '否', '`20000`', '请求超时，可设置为 1,000–120,000 毫秒。'],
-      ['`DROP_ALLOWED_ROOTS`', '否', 'MCP 进程工作目录', '允许发布本地站点的文件系统根目录。'],
+      ['`DROP_ALLOWED_ROOTS`', '否', '用户主目录（macOS 为 `/Users/{username}`）', '可选的本地站点发布范围。'],
       ['`DROP_ENV_FILE`', '否', '项目根目录 `.env`', '本地开发时可选的环境变量文件。']
     ],
     limitsTitle: '限制与安全',
@@ -154,7 +154,7 @@ const zh: DocsContent = {
       '只接受小写扩展名的 `.html`、`.css` 与 `.js` 文件。',
       '文件必须是有效的 UTF-8 文本。隐藏文件和 `node_modules` 会被跳过。',
       '使用 `path` 发布目录时会拒绝符号链接。',
-      '`DROP_ALLOWED_ROOTS` 应尽可能收窄，不要指向用户主目录或整个磁盘。',
+      '默认情况下，发布范围限制为用户主目录。站点位于专用目录时，可使用 `DROP_ALLOWED_ROOTS` 收窄范围。',
       '不要提交真实 API Key 或本地 `.env` 文件。怀疑泄露时立即吊销密钥。'
     ],
     troubleshootingTitle: '故障排查',
