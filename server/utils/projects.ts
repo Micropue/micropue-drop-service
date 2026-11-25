@@ -3,11 +3,13 @@ import type { H3Event } from 'h3'
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import { getSessionUser, type DropUser } from './auth'
 import { useDb } from './db'
+import { recentDays, summarizeTraffic } from './traffic'
 
 export const MAX_FILES = 20
 export const MAX_FOLDERS = 50
 export const MAX_FILE_BYTES = 512 * 1024
 export const MAX_TOTAL_BYTES = 1024 * 1024
+export const MAX_PROJECTS = 1000
 export const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/
 const FILE_RE = /^[\p{L}\p{N}][\p{L}\p{N}._-]{0,79}\.(html|css|js)$/u
 const PATH_SEGMENT_RE = /^[\p{L}\p{N}._-]+$/u
@@ -279,55 +281,40 @@ export async function listProjects(event: H3Event, query: ProjectListQuery) {
   const total = Number(countRows[0]?.count ?? 0)
   const pages = Math.max(1, Math.ceil(total / perPage))
   const current = Math.min(Math.max(1, Math.floor(query.page) || 1), pages)
+  const [usageRows] = await useDb().query<RowDataPacket[]>(
+    'SELECT COUNT(*) AS `count` FROM `projects` WHERE `owner_bits_id` = ?',
+    [user.bitsId]
+  )
+  const projectCount = Number(usageRows[0]?.count ?? 0)
 
   const [rows] = await useDb().query<RowDataPacket[]>(
     `SELECT \`sid\`, \`name\`, \`slug\`, \`visibility\`, \`enabled\`, \`updated_at\` FROM \`projects\` WHERE ${where} ORDER BY ${PROJECT_ORDER[query.sort] || PROJECT_ORDER.updated} LIMIT ? OFFSET ?`,
     [...params, perPage, (current - 1) * perPage]
   )
 
-  const [clockRows] = await useDb().query<RowDataPacket[]>(
-    `SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS today,
-            DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL DAYOFWEEK(CURDATE()) - 1 DAY), '%Y-%m-%d') AS week_start`
-  )
-  const today = String(clockRows[0]?.today || '')
-  const weekStart = String(clockRows[0]?.week_start || '')
-  const weekDays: string[] = []
-  if (weekStart) {
-    const start = new Date(`${weekStart}T00:00:00Z`)
-    for (let i = 0; i < 7; i++) {
-      const day = new Date(start)
-      day.setUTCDate(start.getUTCDate() + i)
-      weekDays.push(day.toISOString().slice(0, 10))
-    }
-  }
-
-  // 只保留本周的数据
-  if (weekStart) {
-    await useDb().query('DELETE FROM `project_visits` WHERE `day` < ?', [weekStart])
-  }
+  const trafficWindow = await recentDays()
 
   const [visitRows] = await useDb().query<RowDataPacket[]>(
     `SELECT v.\`project_sid\`, DATE_FORMAT(v.\`day\`, '%Y-%m-%d') AS day, COUNT(*) AS count
      FROM \`project_visits\` v JOIN \`projects\` p ON p.\`sid\` = v.\`project_sid\`
-     WHERE p.\`owner_bits_id\` = ? AND v.\`day\` >= ?
+     WHERE p.\`owner_bits_id\` = ? AND v.\`day\` BETWEEN ? AND ?
      GROUP BY v.\`project_sid\`, v.\`day\``,
-    [user.bitsId, weekStart || '1970-01-01']
+    [user.bitsId, trafficWindow.start, trafficWindow.today]
   )
-  const visitsByProject = new Map<string, number[]>()
+  const visitsByProject = new Map<string, Map<string, number>>()
   for (const row of visitRows) {
-    const index = weekDays.indexOf(String(row.day))
-    if (index < 0) continue
     const sid = String(row.project_sid)
-    const week = visitsByProject.get(sid) || [0, 0, 0, 0, 0, 0, 0]
-    week[index] = Number(row.count || 0)
-    visitsByProject.set(sid, week)
+    let counts = visitsByProject.get(sid)
+    if (!counts) {
+      counts = new Map()
+      visitsByProject.set(sid, counts)
+    }
+    counts.set(String(row.day), Number(row.count || 0))
   }
-  const todayIndex = weekDays.indexOf(today)
 
   return {
     projects: rows.map(row => {
       const sid = String(row.sid)
-      const week = visitsByProject.get(sid) || [0, 0, 0, 0, 0, 0, 0]
       return {
         sid,
         name: String(row.name),
@@ -336,13 +323,10 @@ export async function listProjects(event: H3Event, query: ProjectListQuery) {
         enabled: Boolean(row.enabled),
         updatedAt: (row.updated_at as Date).toISOString(),
         path: projectPath(user, String(row.slug)),
-        visits: {
-          today: todayIndex >= 0 ? week[todayIndex] : 0,
-          week,
-          total: week.reduce((sum, value) => sum + value, 0)
-        }
+        visits: summarizeTraffic(trafficWindow, visitsByProject.get(sid) || new Map())
       }
     }),
+    usage: { count: projectCount, limit: MAX_PROJECTS },
     page: current,
     perPage,
     total,
@@ -438,8 +422,8 @@ export async function createProjectForUser(
     'SELECT COUNT(*) AS `count` FROM `projects` WHERE `owner_bits_id` = ?',
     [user.bitsId]
   )
-  if (Number(countRows[0]?.count ?? 0) >= 100) {
-    throw createError({ statusCode: 409, statusMessage: 'Project limit reached (100).' })
+  if (Number(countRows[0]?.count ?? 0) >= MAX_PROJECTS) {
+    throw createError({ statusCode: 409, statusMessage: `Project limit reached (${MAX_PROJECTS}).` })
   }
 
   const passwordHash = input.visibility === 'password'

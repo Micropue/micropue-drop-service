@@ -28,9 +28,10 @@
       <li>
         <strong>Technical data.</strong> A session cookie, an OAuth state cookie, password-unlock cookies,
         request timestamps, and the IP address used for password-attempt rate limiting. To count unique project
-        visitors, we store a SHA-256 hash of your IP address and browser user agent for the current week
-        (Sunday–Saturday); those rows are retained only for the current week. We do not use advertising trackers and we
-        do not sell personal data.
+        visitors, we store a SHA-256 hash of your IP address and browser user agent together with the visit date.
+        Authenticated API activity is counted by key and day as aggregated call totals. These records support the
+        rolling 7-day traffic views in your account and do not include request contents. We do not use advertising
+        trackers and we do not sell personal data.
       </li>
     </ul>
 

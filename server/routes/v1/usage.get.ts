@@ -2,6 +2,7 @@ import type { RowDataPacket } from 'mysql2/promise'
 import { defineApiHandler } from '../../utils/api'
 import { requireApi } from '../../utils/api-keys'
 import { useDb } from '../../utils/db'
+import { MAX_PROJECTS } from '../../utils/projects'
 
 export default defineApiHandler(async event => {
   const { user } = await requireApi(event, ['projects:read'], 'read')
@@ -31,7 +32,7 @@ export default defineApiHandler(async event => {
 
   const last = lastRows[0]?.last
   return {
-    projects: { used: Number(projectRows[0]?.count ?? 0), limit: 100 },
+    projects: { used: Number(projectRows[0]?.count ?? 0), limit: MAX_PROJECTS },
     storageBytes: Number(projectRows[0]?.bytes ?? 0),
     deploymentsThisMonth: Number(deploymentRows[0]?.count ?? 0),
     lastDeploymentAt: last ? new Date(last as Date | string).toISOString() : null

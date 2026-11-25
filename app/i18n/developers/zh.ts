@@ -265,7 +265,7 @@ const zh: DocsContent = {
     deployNote: '添加 `If-Match: "rev-3"` 可避免覆盖更新的 revision。添加 `Idempotency-Key` 请求头可让重试更安全。',
     limitsTitle: '限制',
     limits: [
-      ['100', '每个账号的项目数'],
+      ['1,000', '每个账号的项目数'],
       ['20', '每个项目的文件数'],
       ['512 KiB', '单文件上限'],
       ['1 MiB', '单项目上限']

@@ -125,7 +125,7 @@ The local development app is active in `.env`. To test the deployment app, copy 
 The creator at `/new` matches the site navigation width (`max-width: 1300px`): the file explorer is on the left and CodeMirror 6 is on the right.
 
 - Only `.html`, `.css` and `.js` files; at most 20 files, 512 KB each and 1 MB total per project.
-- **Max 100 projects per BITS account.**
+- **Max 1,000 projects per BITS account.**
 - Files can live in folders; empty folders are stored in the project's `folders` JSON column. Folder and file names may use any letters (including Chinese), numbers, dots, underscores and hyphens.
 - Everything is stored in MySQL (`projects`, `project_files`). Nothing is written to disk.
 - Visibility: `public` or `password` (scrypt hash; the plain password is never stored).
@@ -139,8 +139,9 @@ The creator at `/new` matches the site navigation width (`max-width: 1300px`): t
 - `Share` opens a QR code and the project link.
 - `Fork`, next to `Share`, opens the share-fork dialog. Its switch turns invitations on or off; when off, new invitations cannot be accepted. The dialog shows a QR code and the invitation link, whose only credential is a 12-character invitation code. Accepting copies the project name, folders, files, visibility and password hash into the recipient's account, then opens the new project in the editor. The recipient can choose a unique fork URL, initially suggested as `<original-slug>-fork`; a duplicate name is rejected so the field can show an inline error. The same invitation can create multiple independent forks, no fork history is recorded, and owners cannot fork their own project.
 - The preview button next to the settings icon opens a right-side iframe preview of the current HTML file. Project CSS and JS are inlined, internal HTML links navigate inside the preview, the iframe is sandboxed, and the refresh button rebuilds it after edits.
-- The dashboard lists your projects 20 per page with search (name or URL), sorting (last updated / newest / name), a weekly traffic sparkline, a visibility icon, an on/off switch, `Edit` and `Delete`.
-  - Traffic counts unique HTML visitors per day (IP + user agent hash), keeps only the current week starting Sunday, and opens a full line chart when clicked.
+- The dashboard lists your projects 20 per page with search (name or URL), sorting (last updated / newest / name), project-capacity usage, a 7-day traffic sparkline, a visibility icon, an on/off switch, `Edit` and `Delete`.
+  - Traffic counts unique HTML visitors per day (IP + user agent hash) over a rolling 7-day window and opens a full line chart when clicked. Historical rows are not deleted when the window moves.
+  - The API keys page shows authenticated API calls per key using the same rolling 7-day traffic view.
   - The switch controls whether the site is served at all — it is not visibility. Visibility (`public` / `password`) is still changed in the editor settings.
   - `Edit` reopens the project in the creator (`/new?edit=<sid>`); `Delete` asks for confirmation and removes the project with its files.
 - On screens ≤900px the explorer becomes a drawer.

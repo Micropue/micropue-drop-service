@@ -5,6 +5,7 @@ import { getUserByBitsId, type DropUser } from './auth'
 import { apiError } from './api'
 import { consumeRateLimit, limitInvalidAuth, type ApiLimitKind } from './api-rate-limit'
 import { useDb } from './db'
+import { recentDays, summarizeTraffic, type TrafficSummary } from './traffic'
 
 export const API_SCOPES = [
   'projects:read',
@@ -32,6 +33,10 @@ export interface ApiKeyRecord {
 export interface ApiKeyContext {
   key: ApiKeyRecord
   user: DropUser
+}
+
+export interface ApiKeyListItem extends ApiKeyRecord {
+  traffic: TrafficSummary
 }
 
 interface ApiKeyRow extends RowDataPacket {
@@ -220,7 +225,30 @@ export async function listApiKeys(user: DropUser) {
      ORDER BY \`created_at\` DESC`,
     [user.bitsId]
   )
-  return rows.map(rowToKey)
+
+  const trafficWindow = await recentDays()
+  const [usageRows] = await useDb().query<RowDataPacket[]>(
+    `SELECT u.\`api_key_id\`, DATE_FORMAT(u.\`day\`, '%Y-%m-%d') AS \`day\`, u.\`calls\`
+     FROM \`api_key_usage\` u
+     JOIN \`api_keys\` k ON k.\`id\` = u.\`api_key_id\`
+     WHERE k.\`owner_bits_id\` = ? AND u.\`day\` BETWEEN ? AND ?`,
+    [user.bitsId, trafficWindow.start, trafficWindow.today]
+  )
+  const usageByKey = new Map<string, Map<string, number>>()
+  for (const row of usageRows) {
+    const id = String(row.api_key_id)
+    let counts = usageByKey.get(id)
+    if (!counts) {
+      counts = new Map()
+      usageByKey.set(id, counts)
+    }
+    counts.set(String(row.day), Number(row.calls || 0))
+  }
+
+  return rows.map<ApiKeyListItem>(row => ({
+    ...rowToKey(row),
+    traffic: summarizeTraffic(trafficWindow, usageByKey.get(String(row.id)) || new Map())
+  }))
 }
 
 export async function revokeApiKey(user: DropUser, id: string) {
@@ -277,6 +305,13 @@ export async function authenticateApiKey(event: H3Event): Promise<ApiKeyContext>
      WHERE \`id\` = ? AND (\`last_used_at\` IS NULL OR \`last_used_at\` < NOW() - INTERVAL 60 SECOND)`,
     [row.id]
   ).catch(err => console.warn('[api] failed to update key last_used_at:', err instanceof Error ? err.message : err))
+
+  await useDb().query(
+    `INSERT INTO \`api_key_usage\` (\`api_key_id\`, \`day\`, \`calls\`)
+     VALUES (?, CURDATE(), 1)
+     ON DUPLICATE KEY UPDATE \`calls\` = \`calls\` + 1`,
+    [row.id]
+  ).catch(err => console.warn('[api] failed to record key usage:', err instanceof Error ? err.message : err))
 
   return { key: rowToKey(row), user }
 }

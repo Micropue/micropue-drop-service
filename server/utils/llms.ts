@@ -173,7 +173,7 @@ The editor is available at ${siteUrl}/new and the project dashboard at ${siteUrl
 
 ## Limits
 
-- 100 projects per account.
+- 1,000 projects per account.
 - 1–20 files per project.
 - 512 KiB maximum per file.
 - 1 MiB maximum project size.

@@ -7,6 +7,7 @@ import {
   fileBytes,
   insertDeployment,
   insertFiles,
+  MAX_PROJECTS,
   projectPath,
   requireUser,
   SLUG_RE,
@@ -16,7 +17,6 @@ import {
 
 const SHARE_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
 const SHARE_CODE_LENGTH = 12
-const MAX_PROJECTS = 100
 const FORK_SUFFIX = '-fork'
 
 interface ForkSettingsRow extends RowDataPacket {
@@ -335,7 +335,7 @@ export async function acceptFork(event: H3Event, code: unknown, requestedSlug?: 
         [user.bitsId]
       )
       if (Number(countRows[0]?.count || 0) >= MAX_PROJECTS) {
-        throw createError({ statusCode: 409, statusMessage: 'Project limit reached (100).' })
+        throw createError({ statusCode: 409, statusMessage: `Project limit reached (${MAX_PROJECTS}).` })
       }
 
       const [slugRows] = await conn.query<RowDataPacket[]>(

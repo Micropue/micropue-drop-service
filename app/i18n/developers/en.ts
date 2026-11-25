@@ -263,7 +263,7 @@ const en = {
     deployNote: 'Add `If-Match: "rev-3"` to prevent overwriting a newer revision. Add an `Idempotency-Key` header to make retries safe.',
     limitsTitle: 'Limits',
     limits: [
-      ['100', 'projects per account'],
+      ['1,000', 'projects per account'],
       ['20', 'files per project'],
       ['512 KiB', 'per file'],
       ['1 MiB', 'per project']

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
 
 // 所有 schema 变更必须是可重复执行的：只新增表/列/索引，不删除、不重建已有数据。
-export const SCHEMA_VERSION = '2026-11-21-fork-sharing-v2'
+export const SCHEMA_VERSION = '2026-11-25-api-key-traffic'
 const SCHEMA_LOCK = 'drop:developer-platform-v1'
 
 const ACCOUNTS_TABLE_SQL = `
@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS \`project_visits\` (
   PRIMARY KEY (\`project_sid\`, \`day\`, \`visitor\`),
   KEY \`idx_project_visits_day\` (\`day\`),
   CONSTRAINT \`fk_project_visits_project\` FOREIGN KEY (\`project_sid\`) REFERENCES \`projects\` (\`sid\`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='DROP 项目访问统计表（仅保留本周）'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='DROP 项目每日访问去重统计'
 `
 
 const API_KEYS_TABLE_SQL = `
@@ -86,6 +86,19 @@ CREATE TABLE IF NOT EXISTS \`api_keys\` (
   UNIQUE KEY \`uk_api_keys_prefix\` (\`prefix\`),
   KEY \`idx_api_keys_owner\` (\`owner_bits_id\`, \`created_at\`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='DROP 开发者 API Key'
+`
+
+const API_KEY_USAGE_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS \`api_key_usage\` (
+  \`api_key_id\` CHAR(36) NOT NULL COMMENT 'API Key UUID',
+  \`day\` DATE NOT NULL COMMENT '调用日期（本地时区）',
+  \`calls\` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '当日鉴权成功的调用次数',
+  \`updated_at\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`api_key_id\`, \`day\`),
+  KEY \`idx_api_key_usage_day\` (\`day\`),
+  CONSTRAINT \`fk_api_key_usage_key\`
+    FOREIGN KEY (\`api_key_id\`) REFERENCES \`api_keys\` (\`id\`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='DROP API Key 每日调用统计'
 `
 
 const PROJECT_DEPLOYMENTS_TABLE_SQL = `
@@ -124,6 +137,7 @@ const DDL = [
   PROJECT_FILES_TABLE_SQL,
   PROJECT_VISITS_TABLE_SQL,
   API_KEYS_TABLE_SQL,
+  API_KEY_USAGE_TABLE_SQL,
   PROJECT_DEPLOYMENTS_TABLE_SQL
 ]
 

@@ -41,6 +41,8 @@
           <div><dt>Last used</dt><dd>{{ key.lastUsedAt ? formatDate(key.lastUsedAt) : 'Never' }}</dd></div>
           <div><dt>Expires</dt><dd>{{ key.expiresAt ? formatDate(key.expiresAt) : 'Never' }}</dd></div>
         </dl>
+        <TrafficBadge class="traffic-cell" :traffic="key.traffic" :subject="key.name" unit-singular="call"
+          unit-plural="calls" @click="openTraffic(key)" />
         <Button v-if="key.status === 'active'" class="revoke-button" text rounded
           :aria-label="`Revoke ${key.name}`" title="Revoke key" @click="askRevoke(key)">
           <Trash aria-hidden="true" />
@@ -110,6 +112,13 @@
       </template>
     </Dialog>
 
+    <Dialog v-model:visible="trafficOpen" modal header="API traffic" :style="{ width: 'min(640px, 94vw)' }"
+      :draggable="false">
+      <TrafficChart v-if="trafficKey" :traffic="trafficKey.traffic" :item-name="`${trafficKey.name} · ${trafficKey.prefix}…`"
+        unit-singular="call" unit-plural="calls"
+        hint="Authenticated API requests per day over the latest 7 calendar days, including today." />
+    </Dialog>
+
     <Dialog v-model:visible="revokeOpen" modal header="Revoke API key" :style="{ width: 'min(440px, 92vw)' }"
       :draggable="false">
       <p>Revoke <strong>{{ revokeTarget?.name }}</strong>? Requests using it will fail immediately.</p>
@@ -143,6 +152,11 @@ interface ApiKey {
   expiresAt: string | null
   revokedAt: string | null
   status: 'active' | 'expired' | 'revoked'
+  traffic: {
+    today: number
+    days: Array<{ date: string; count: number }>
+    total: number
+  }
 }
 
 const { user } = useAuthUser()
@@ -173,6 +187,7 @@ const expiryOptions = [
 
 const createOpen = ref(false)
 const secretOpen = ref(false)
+const trafficOpen = ref(false)
 const revokeOpen = ref(false)
 const creating = ref(false)
 const revoking = ref(false)
@@ -183,6 +198,7 @@ const selectedScopes = ref<string[]>(['projects:read', 'projects:write', 'deploy
 const preset = ref('')
 const createError = ref('')
 const newToken = ref('')
+const trafficKey = ref<ApiKey | null>(null)
 const revokeTarget = ref<ApiKey | null>(null)
 
 function applyPreset(value: 'read' | 'deploy' | 'full') {
@@ -211,7 +227,7 @@ async function createKey() {
   creating.value = true
   createError.value = ''
   try {
-    const result = await $fetch<{ key: ApiKey; token: string }>('/api/developer/keys', {
+    const result = await $fetch<{ key: Omit<ApiKey, 'traffic'>; token: string }>('/api/developer/keys', {
       method: 'POST',
       body: {
         name: name.value.trim() || 'API key',
@@ -244,6 +260,11 @@ function closeSecret() {
   secretOpen.value = false
   newToken.value = ''
   copied.value = false
+}
+
+function openTraffic(key: ApiKey) {
+  trafficKey.value = key
+  trafficOpen.value = true
 }
 
 function askRevoke(key: ApiKey) {
@@ -366,7 +387,7 @@ function formatDate(value: string) {
 
 .key-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 1.5rem;
   padding: 0.95rem 1.25rem;
@@ -461,13 +482,20 @@ function formatDate(value: string) {
   }
 }
 
-:deep(.revoke-button) {
+:deep(.revoke-button.p-button) {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
   color: var(--p-text-muted-color);
 }
 
 :deep(.revoke-button svg) {
-  width: 0.85rem;
-  height: 0.85rem;
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 :deep(.revoke-button.p-button:not(:disabled):hover) {
@@ -617,10 +645,10 @@ function formatDate(value: string) {
 
 @media (max-width: 900px) {
   .key-row {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     grid-template-areas:
-      'main revoke'
-      'meta meta';
+      'main main revoke'
+      'meta traffic revoke';
     align-items: start;
     gap: 0.9rem 1rem;
   }
@@ -634,8 +662,14 @@ function formatDate(value: string) {
     flex-wrap: wrap;
   }
 
+  .traffic-cell {
+    grid-area: traffic;
+    justify-self: end;
+  }
+
   .revoke-button {
     grid-area: revoke;
+    align-self: start;
   }
 
   .head {
@@ -645,6 +679,15 @@ function formatDate(value: string) {
 }
 
 @media (max-width: 560px) {
+  .key-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'main revoke'
+      'meta meta'
+      'traffic traffic';
+    gap: 0.75rem;
+  }
+
   .secret-row {
     flex-direction: column;
   }

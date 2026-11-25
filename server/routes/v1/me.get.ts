@@ -1,5 +1,6 @@
 import { defineApiHandler } from '../../utils/api'
 import { requireApi } from '../../utils/api-keys'
+import { MAX_PROJECTS } from '../../utils/projects'
 
 export default defineApiHandler(async event => {
   const { key, user } = await requireApi(event, [], 'read')
@@ -22,7 +23,7 @@ export default defineApiHandler(async event => {
       lastUsedAt: key.lastUsedAt
     },
     limits: {
-      projects: 100,
+      projects: MAX_PROJECTS,
       filesPerProject: 20,
       fileBytes: 524288,
       projectBytes: 1048576,

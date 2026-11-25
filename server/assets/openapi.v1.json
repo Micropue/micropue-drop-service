@@ -962,7 +962,7 @@
         "properties": {
           "projects": {
             "type": "integer",
-            "example": 100
+            "example": 1000
           },
           "filesPerProject": {
             "type": "integer",
