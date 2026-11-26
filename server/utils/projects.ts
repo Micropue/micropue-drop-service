@@ -4,6 +4,11 @@ import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/prom
 import { getSessionUser, type DropUser } from './auth'
 import { useDb } from './db'
 import { recentDays, summarizeTraffic } from './traffic'
+import {
+  validateFilePath,
+  validateFolderPath,
+  type ProjectLanguage
+} from '../../shared/project-paths'
 
 export const MAX_FILES = 20
 export const MAX_FOLDERS = 50
@@ -11,11 +16,9 @@ export const MAX_FILE_BYTES = 512 * 1024
 export const MAX_TOTAL_BYTES = 1024 * 1024
 export const MAX_PROJECTS = 1000
 export const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/
-const FILE_RE = /^[\p{L}\p{N}][\p{L}\p{N}._-]{0,79}\.(html|css|js)$/u
-const PATH_SEGMENT_RE = /^[\p{L}\p{N}._-]+$/u
 
 export type ProjectVisibility = 'public' | 'password'
-export type ProjectLanguage = 'html' | 'css' | 'js'
+export type { ProjectLanguage } from '../../shared/project-paths'
 
 export interface ProjectFileInput {
   name: string
@@ -56,13 +59,14 @@ export interface DeploymentRecord {
   createdAt: string
 }
 
-function fail(message: string): never {
-  throw createError({ statusCode: 400, statusMessage: message })
-}
-
-function validPath(path: string, maxLength: number) {
-  if (!path || path.length > maxLength || path.startsWith('/') || path.endsWith('/') || path.includes('//')) return false
-  return path.split('/').every(part => part !== '.' && part !== '..' && PATH_SEGMENT_RE.test(part))
+function fail(message: string, field?: string): never {
+  throw createError({
+    statusCode: 400,
+    statusMessage: message,
+    data: {
+      errors: [{ ...(field ? { path: field } : {}), message }]
+    }
+  })
 }
 
 // 文件父目录自动补成显式文件夹，保证空文件夹和嵌套目录都能保存/恢复
@@ -121,10 +125,11 @@ export function parseProjectInput(body: unknown): ProjectInput {
     if (raw.folders.length > MAX_FOLDERS) fail(`A project can have at most ${MAX_FOLDERS} folders.`)
 
     const seenFolders = new Set<string>()
-    for (const entry of raw.folders) {
-      if (typeof entry !== 'string') fail('Invalid folder path.')
+    for (const [index, entry] of raw.folders.entries()) {
+      if (typeof entry !== 'string') fail('Invalid folder path.', `folders[${index}]`)
       const folder = entry.trim()
-      if (!validPath(folder, 100)) fail(`Invalid folder path: ${folder}`)
+      const validation = validateFolderPath(folder)
+      if (!validation.ok) fail(validation.message, `folders[${index}]`)
 
       const key = folder.toLowerCase()
       if (!seenFolders.has(key)) {
@@ -141,7 +146,7 @@ export function parseProjectInput(body: unknown): ProjectInput {
   const seen = new Set<string>()
   let totalBytes = 0
 
-  for (const entry of raw.files) {
+  for (const [index, entry] of raw.files.entries()) {
     if (!entry || typeof entry !== 'object') fail('Invalid file data.')
 
     const file = entry as Record<string, unknown>
@@ -149,26 +154,21 @@ export function parseProjectInput(body: unknown): ProjectInput {
     const language = typeof file.language === 'string' ? file.language : ''
     const content = typeof file.content === 'string' ? file.content : ''
 
-    const parts = fileName.split('/')
-    const baseName = parts[parts.length - 1] || ''
-
-    if (!FILE_RE.test(baseName)) {
-      fail('Files must be .html, .css or .js and cannot end with a folder.')
-    }
-    if (!validPath(fileName, 120)) fail(`Invalid file path: ${fileName}`)
+    const validation = validateFilePath(fileName)
+    if (!validation.ok) fail(validation.message, `files[${index}].path`)
     if (language !== 'html' && language !== 'css' && language !== 'js') {
-      fail('Unsupported file type.')
+      fail('Unsupported file type.', `files[${index}].language`)
     }
-    if (baseName.split('.').pop() !== language) {
-      fail(`${fileName} does not match its file type.`)
+    if (validation.language !== language) {
+      fail(`${fileName} does not match its file type.`, `files[${index}].path`)
     }
 
     const key = fileName.toLowerCase()
-    if (seen.has(key)) fail(`Duplicate file name: ${fileName}`)
+    if (seen.has(key)) fail(`Duplicate file name: ${fileName}`, `files[${index}].path`)
     seen.add(key)
 
     const bytes = Buffer.byteLength(content, 'utf8')
-    if (bytes > MAX_FILE_BYTES) fail(`${fileName} is larger than 512 KB.`)
+    if (bytes > MAX_FILE_BYTES) fail(`${fileName} is larger than 512 KB.`, `files[${index}].content`)
     totalBytes += bytes
 
     files.push({ name: fileName, language, content })

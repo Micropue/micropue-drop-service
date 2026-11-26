@@ -146,10 +146,14 @@ const en = {
       ['1–20', 'files per project'],
       ['512 KiB', 'maximum per file'],
       ['1 MiB', 'maximum project size'],
-      ['50', 'directories maximum']
+      ['50', 'directories maximum'],
+      ['100', 'characters per folder path'],
+      ['120', 'characters per file path'],
+      ['80', 'characters per file name, including extension']
     ],
     safety: [
       'Only lowercase `.html`, `.css` and `.js` files are accepted.',
+      'Folder and file paths use `/` between segments. Each segment may contain only Unicode letters (including Chinese), numbers, `.`, `_` and `-`. Spaces, brackets such as `(` and `)` and other symbols are rejected. File names must start with a letter or number.',
       'Every file must be valid UTF-8 text. Hidden files and `node_modules` are skipped.',
       'Symbolic links are rejected when publishing a directory with `path`.',
       'Publishing is limited to the user home directory by default. Narrow the scope with `DROP_ALLOWED_ROOTS` when your sites live in a dedicated folder.',
@@ -162,7 +166,7 @@ const en = {
       ['`401`', 'The key is invalid, expired or revoked.', 'Run `drop_whoami` to verify the connection, or create a new key.'],
       ['`403`', 'The key does not have every required scope.', 'Use a key with `projects:read`, `projects:write` and `deployments:write`.'],
       ['`409` / `412`', 'A slug or project revision changed during publishing.', 'Read the current project again, then retry instead of forcing the old snapshot.'],
-      ['`413` / `422`', 'Files, paths or project parameters failed validation.', 'Check file count, sizes, extensions, UTF-8 encoding, slug format and the `path`/`files` choice.'],
+      ['`413` / `422`', 'Files, paths or project parameters failed validation.', 'Check file count, sizes, UTF-8 encoding, slug format and the `path`/`files` choice. Folder and file path segments allow only Unicode letters, numbers, `.`, `_` and `-`; spaces and brackets are invalid. The response `errors` field identifies the exact `folders[n]` or `files[n].path`.'],
       ['`429` / `503`', 'Requests are rate-limited or a DROP dependency is temporarily unavailable.', 'Honor `Retry-After`, keep the `requestId` and retry later.']
     ]
   },
@@ -178,7 +182,7 @@ const en = {
     ],
     installTitle: 'Install',
     installBody: 'Install the CLI globally when you use it often. Use `npx` for a one-off command or a reproducible CI step.',
-    requirementNote: '**Requirements.** Node.js 20.12 or newer, a DROP personal API key and a directory containing only UTF-8 `.html`, `.css` and `.js` files. Build Vue, React, Astro or Vite projects first and publish their static output directory.',
+    requirementNote: '**Requirements.** Node.js 20.12 or newer, a DROP personal API key and a directory containing only UTF-8 `.html`, `.css` and `.js` files. Folder and file names may use letters (including Chinese), numbers, `.`, `_` and `-` only; spaces and brackets are rejected. Build Vue, React, Astro or Vite projects first and publish their static output directory.',
     authTitle: 'Authenticate',
     authBody: 'Create a key in [API Keys](/developers/keys) with `projects:read`, `projects:write` and `deployments:write`. `drop login` verifies the key and stores it in the user configuration directory.',
     authNote: 'In CI or other non-interactive environments, set `DROP_API_KEY` instead. It takes precedence over the saved credential. Use `DROP_AUTH_FILE` to choose a different credential file.',
@@ -225,6 +229,7 @@ const en = {
     errorRows: [
       ['`401` or invalid API key', 'Run `drop logout`, then `drop login`, then `drop whoami`. Verify all three scopes.'],
       ['Slug already taken', 'Choose another `--slug` or restore the original `.drop/drop.json` from that project.'],
+      ['`422` invalid file or folder path', 'Use only Unicode letters, numbers, `.`, `_` and `-` in each path segment. Spaces, brackets and other symbols are rejected. Folder paths are limited to 100 characters, file paths to 120 and file names to 80.'],
       ['Changes are not appearing', 'Confirm the extension is lowercase `.html`, `.css` or `.js`; check `.drop-ignore`, file size limits and whether an unsupported asset is referenced.'],
       ['Changes are missed on a network drive', 'Restart with `drop --poll`.'],
       ['The site seems offline after `Ctrl+C`', 'That should not happen. Check `drop status`, then open the URL saved in `.drop/drop.json`; only the watcher stops with the process.'],
@@ -266,9 +271,10 @@ const en = {
       ['1,000', 'projects per account'],
       ['20', 'files per project'],
       ['512 KiB', 'per file'],
-      ['1 MiB', 'per project']
+      ['1 MiB', 'per project'],
+      ['100 / 120 / 80', 'folder path / file path / file name characters']
     ],
-    limitsBody: 'v1 accepts only `.html`, `.css` and `.js` files. Read requests are limited to 300 per minute per key, writes to 60 per minute and deploys to 20 per minute.',
+    limitsBody: 'v1 accepts only UTF-8 `.html`, `.css` and `.js` files. Path segments may contain only Unicode letters (including Chinese), numbers, `.`, `_` and `-`; spaces, brackets and other symbols are rejected. Read requests are limited to 300 per minute per key, writes to 60 per minute and deploys to 20 per minute.',
     errorsTitle: 'Errors',
     errorsBody: 'Errors use `application/problem+json` with a stable `code` and `requestId`.'
   },

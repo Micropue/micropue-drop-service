@@ -2,6 +2,9 @@
   "name": "drop",
   "type": "module",
   "private": true,
+  "imports": {
+    "#shared/*": "./shared/*.ts"
+  },
   "scripts": {
     "build": "nuxt build && node scripts/build-migrate.mjs",
     "start": "node --env-file-if-exists=.env --env-file-if-exists=.env.production .output/server/index.mjs",

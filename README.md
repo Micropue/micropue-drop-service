@@ -122,11 +122,13 @@ The local development app is active in `.env`. To test the deployment app, copy 
 
 ## Projects
 
-The creator at `/new` matches the site navigation width (`max-width: 1300px`): the file explorer is on the left and CodeMirror 6 is on the right.
+New projects open at `/new`; editing uses the canonical `/{username}/{slug}` URL. Both match the site navigation width (`max-width: 1300px`): the file explorer is on the left and CodeMirror 6 is on the right.
 
 - Only `.html`, `.css` and `.js` files; at most 20 files, 512 KB each and 1 MB total per project.
 - **Max 1,000 projects per BITS account.**
-- Files can live in folders; empty folders are stored in the project's `folders` JSON column. Folder and file names may use any letters (including Chinese), numbers, dots, underscores and hyphens.
+- Files can live in folders; empty folders are stored in the project's `folders` JSON column.
+- Paths use `/` between segments. Each segment may contain only Unicode letters (including Chinese), numbers, `.`, `_` and `-`. Spaces, brackets such as `(` and `)`, and other symbols are rejected. Segments cannot be empty, `.` or `..`; file names must start with a letter or number.
+- Folder paths are limited to 100 characters, file paths to 120 characters, and a file name including its extension to 80 characters. Extensions must be lowercase `.html`, `.css` or `.js`.
 - Everything is stored in MySQL (`projects`, `project_files`). Nothing is written to disk.
 - Visibility: `public` or `password` (scrypt hash; the plain password is never stored).
 - One item is selected at a time, like VS Code. Selecting a folder highlights it but keeps the last file open in the editor.
@@ -143,7 +145,8 @@ The creator at `/new` matches the site navigation width (`max-width: 1300px`): t
   - Traffic counts unique HTML visitors per day (IP + user agent hash) over a rolling 7-day window and opens a full line chart when clicked. Historical rows are not deleted when the window moves.
   - The API keys page shows authenticated API calls per key using the same rolling 7-day traffic view.
   - The switch controls whether the site is served at all — it is not visibility. Visibility (`public` / `password`) is still changed in the editor settings.
-  - `Edit` reopens the project in the creator (`/new?edit=<sid>`); `Delete` asks for confirmation and removes the project with its files.
+  - `Edit` opens the canonical editor URL (`/{username}/{slug}`); `Delete` asks for confirmation and removes the project with its files.
+- Saving a new project keeps `/new` open. Saving an existing project after changing its slug redirects to the new canonical `/{username}/{slug}` URL. The legacy `/new?edit=<sid>` URL still loads once, then redirects to the canonical URL.
 - On screens ≤900px the explorer becomes a drawer.
 - The explorer uses [he-tree](https://hetree.phphe.com/) (`@he-tree/vue`) with a custom Vue UI; file/folder icons come from [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme) (MIT).
 
@@ -182,7 +185,7 @@ New tables are `api_keys`, `project_deployments` and `schema_migrations`; existi
 - `/sitemap.xml` is a Sitemap index. The main-site `/sitemap-main.xml` lists the home page, `/developers`, `/privacy` and the two LLM references with their real content dates.
 - User content is split into `https://dropcontent.micropue.com.cn/sitemap-content.xml`. It includes public, enabled projects that contain `index.html`; `lastmod` is the latest successful deployment time, falling back to the project update time.
 - Generated `site-*`, automated `news-*` / `gh-new-*`, test/temp/draft pages, generic names and duplicate URLs are omitted from the content Sitemap.
-- `/sign`, `/dashboard`, `/new`, `/fork/**`, `/account` and `/developers/keys` send both a robots meta tag and `X-Robots-Tag: noindex, nofollow`.
+- `/sign`, `/dashboard`, `/new`, `/fork/**`, `/account` and `/developers/keys` send both a robots meta tag and `X-Robots-Tag: noindex, nofollow`. The editor's `/{username}/{slug}` route also sets a noindex robots meta tag.
 
 ## Hosting
 
@@ -301,7 +304,7 @@ app/
 public/          favicon.ico, robots.txt, file-icons/ (Material Icon Theme, MIT)
 server/
   api/auth/      bits.get.ts, bits/callback.get.ts, me.get.ts, logout.post.ts
-  api/projects/  index.get.ts, index.post.ts, [sid].get.ts, [sid].put.ts, [sid].patch.ts, [sid].delete.ts, [sid]/fork.get.ts, [sid]/fork.patch.ts
+  api/projects/  by-path.get.ts, index.get.ts, index.post.ts, [sid].get.ts, [sid].put.ts, [sid].patch.ts, [sid].delete.ts, [sid]/fork.get.ts, [sid]/fork.patch.ts
   api/fork-invites/ [code].get.ts, [code].post.ts
   api/developer/ keys/ (create, list, revoke API keys)
   api/unlock/    [sid].post.ts (password unlock)
@@ -312,6 +315,7 @@ server/
   middleware/    content.ts (content-domain routing)
   routes/        sitemap.xml.ts, sitemap-main.xml.ts, sitemap-content.xml.ts, llms*.txt.ts
   utils/         auth.ts, db.ts, projects.ts, project-forks.ts, site.ts, redis.ts, schema.ts, seo.ts, llms.ts, api*.ts
+shared/           project-paths.ts (shared browser and server path validation)
 docker-compose.yml
 nuxt.config.ts
 .env.example

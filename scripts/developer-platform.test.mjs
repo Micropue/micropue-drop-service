@@ -7,6 +7,7 @@ process.env.AUTH_SECRET ||= 'developer-platform-test-secret'
 const jiti = createJiti(import.meta.url)
 const apiKeys = await jiti.import('../server/utils/api-keys.ts')
 const developerPortal = await jiti.import('../server/utils/developer-portal.ts')
+const projectPaths = await jiti.import('../shared/project-paths.ts')
 
 const first = apiKeys.generateApiKey()
 const second = apiKeys.generateApiKey()
@@ -38,6 +39,31 @@ assert.equal(developerPortal.normalizeHostname('drop.micropue.com.cn:80'), 'drop
 assert.equal(developerPortal.normalizeHostname('https://DROP.micropue.com.cn:443/path'), 'drop.micropue.com.cn')
 assert.equal(developerPortal.normalizeHostname('drop.micropue.com.cn.'), 'drop.micropue.com.cn')
 assert.equal(developerPortal.normalizeHostname('not a host'), '')
+
+assert.deepEqual(projectPaths.validateFolderPath('中文/notes-v2'), {
+  ok: true,
+  path: '中文/notes-v2'
+})
+assert.deepEqual(projectPaths.validateFilePath('assets/style.css'), {
+  ok: true,
+  path: 'assets/style.css',
+  language: 'css'
+})
+assert.match(
+  projectPaths.validateFolderPath('Documents (old)').message,
+  /unsupported characters.*"\(" and "\)"/
+)
+assert.match(projectPaths.validateFilePath('my file.html').message, /unsupported character/)
+assert.match(projectPaths.validateFilePath('index.HTML').message, /lowercase \.html, \.css or \.js/)
+assert.match(projectPaths.validateFilePath('.hidden.html').message, /must start with a Unicode letter or number/)
+assert.match(
+  projectPaths.validateFilePath(`assets/${'a'.repeat(101)}/index.html`).message,
+  /Folder path.*too long/
+)
+assert.match(
+  projectPaths.validateFilePath(`${'a'.repeat(119)}.html`).message,
+  /File path.*too long/
+)
 
 const openapiJson = JSON.parse(fs.readFileSync(new URL('../server/assets/openapi.v1.json', import.meta.url), 'utf8'))
 assert.equal(openapiJson.openapi, '3.1.0')

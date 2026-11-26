@@ -1058,6 +1058,11 @@
           "js"
         ]
       },
+      "FolderPath": {
+        "type": "string",
+        "description": "Project-relative folder path. Use \"/\" between segments. Each segment may\ncontain only Unicode letters (including Chinese), numbers, \".\", \"_\" and\n\"-\". Spaces, brackets and other symbols are rejected. Empty, \".\" and \"..\"\nsegments are not allowed. Maximum 100 characters.\n",
+        "maxLength": 100
+      },
       "FileInput": {
         "type": "object",
         "required": [
@@ -1068,7 +1073,7 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Project-relative path ending in .html, .css or .js. Must not start or\nend with a slash and must not contain . or .. segments.\n",
+            "description": "Project-relative path ending in lowercase .html, .css or .js. Use \"/\"\nbetween segments. Each segment may contain only Unicode letters\n(including Chinese), numbers, \".\", \"_\" and \"-\". Spaces, brackets and\nother symbols are rejected. Must not start or end with a slash and must\nnot contain empty, \".\" or \"..\" segments. The complete path is limited\nto 120 characters and the file name including its extension to 80.\nFile names must start with a Unicode letter or number.\n",
             "maxLength": 120
           },
           "content": {
@@ -1172,7 +1177,7 @@
                 "type": "array",
                 "maxItems": 50,
                 "items": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/FolderPath"
                 }
               },
               "files": {
@@ -1298,7 +1303,7 @@
             "type": "array",
             "maxItems": 50,
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/FolderPath"
             }
           },
           "files": {
@@ -1354,7 +1359,7 @@
             "type": "array",
             "maxItems": 50,
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/FolderPath"
             }
           },
           "files": {

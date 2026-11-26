@@ -25,7 +25,25 @@ assert.deepEqual(chinese.files.map(item => item.name), ['中文目录/页面.htm
 assert.deepEqual(chinese.folders, ['中文目录'])
 
 await assert.rejects(() => parseFolderFiles([file('site/my file.html')]), /Cannot import/)
+await assert.rejects(
+  () => parseFolderFiles([file('site/Documents (old)/style.css')]),
+  /unsupported characters.*"\(" and "\)"/
+)
+for (const character of ['#', '?', '%', '@', '+', '[', ']']) {
+  await assert.rejects(
+    () => parseFolderFiles([file(`site/bad${character}name/index.html`)]),
+    /Cannot import/
+  )
+}
 await assert.rejects(() => parseFolderFiles([file('site/index.HTML')]), /Cannot import/)
+await assert.rejects(
+  () => parseFolderFiles([file(`site/${'a'.repeat(101)}/index.html`)]),
+  /Folder path.*too long/
+)
+await assert.rejects(
+  () => parseFolderFiles([file(`site/${'a'.repeat(121)}.html`)]),
+  /File path.*too long/
+)
 await assert.rejects(() => parseFolderFiles([file('site/big.html', 600 * 1024)]), /512 KB/)
 await assert.rejects(
   () => parseFolderFiles(Array.from({ length: 21 }, (_, i) => file(`site/f${i}.html`))),

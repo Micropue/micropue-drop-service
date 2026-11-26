@@ -334,6 +334,10 @@ import SignOut from '@primeicons/vue/sign-out'
 import ArrowLeft from '@primeicons/vue/arrow-left'
 import { onBeforeRouteLeave } from 'vue-router'
 import { parseFolderFiles } from '~/utils/folder-import'
+import {
+  validateFilePath,
+  validateFolderPath
+} from '#shared/project-paths'
 
 type Visibility = 'public' | 'password'
 type Language = 'html' | 'css' | 'js'
@@ -376,9 +380,22 @@ const { user } = useAuthUser()
 if (!user.value) await navigateTo('/sign')
 
 const route = useRoute()
-const editingSid = typeof route.query.edit === 'string' ? route.query.edit : ''
+const router = useRouter()
 
-useHead({ title: computed(() => (editingSid ? 'Edit Project' : 'Create Project')) })
+const routeUsername = computed(() => {
+  const value = route.params.username
+  return typeof value === 'string' ? value : ''
+})
+const routeSlug = computed(() => {
+  const value = route.params.slug
+  return typeof value === 'string' ? value : ''
+})
+const legacyEditingSid = computed(() =>
+  typeof route.query.edit === 'string' ? route.query.edit : '')
+const isEditing = computed(() =>
+  Boolean(legacyEditingSid.value || (routeUsername.value && routeSlug.value)))
+
+useHead({ title: computed(() => (isEditing.value ? 'Edit Project' : 'Create Project')) })
 useNoIndex()
 
 const username = computed(() => user.value?.username || '')
@@ -388,8 +405,6 @@ const siteHost = computed(() =>
   contentUrl.value.replace(/^https?:\/\//, '').replace(/\/+$/, ''))
 
 const slugPattern = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/
-const FILE_NAME_RE = /^[\p{L}\p{N}][\p{L}\p{N}._-]{0,79}\.(html|css|js)$/u
-const FOLDER_NAME_RE = /^[\p{L}\p{N}._-]+$/u
 const MAX_FILES = 20
 const MAX_FOLDERS = 50
 const MAX_TOTAL_BYTES = 1024 * 1024
@@ -660,16 +675,31 @@ const savedPath = ref<string>('')
 const saving = ref(false)
 const error = ref('')
 const dirty = ref(false)
-const loadingProject = ref(Boolean(editingSid))
+const loadingProject = ref(isEditing.value)
 const loadFailed = ref(false)
 const lastSaved = ref<Date | null>(null)
 
-// /new?edit=<sid>：把已有项目读回编辑器，后续保存走 PUT
+// /{username}/{slug}：把已有项目读回编辑器，后续保存走 PUT
+// 旧版 /new?edit=<sid> 仍可打开，加载后会替换成规范 URL
 // 放在 onMounted 里，避免顶层 await 让页面变成异步组件、CodeEditor 无法挂载
 async function loadProject() {
-  if (!editingSid) return
+  const usernameParam = routeUsername.value
+  const slugParam = routeSlug.value
+  const querySid = legacyEditingSid.value
+  if (!querySid && (!usernameParam || !slugParam)) {
+    loadingProject.value = false
+    return
+  }
+
+  loadingProject.value = true
+  loadFailed.value = false
   try {
-    const { project } = await $fetch(`/api/projects/${editingSid}`)
+    const response = usernameParam && slugParam
+      ? await $fetch<{ project: SavedProject }>('/api/projects/by-path', {
+          query: { username: usernameParam, slug: slugParam }
+        })
+      : await $fetch<{ project: SavedProject }>(`/api/projects/${querySid}`)
+    const project = response.project
     projectId.value = project.sid
     name.value = project.name
     slug.value = project.slug
@@ -688,6 +718,9 @@ async function loadProject() {
     if (project.visibility === 'password' && !project.hasPassword) settingsDialog.value = true
     await nextTick()
     dirty.value = false
+    if (querySid && !usernameParam && project.path) {
+      await router.replace(project.path)
+    }
   } catch {
     loadFailed.value = true
     error.value = 'Could not load this project.'
@@ -793,8 +826,6 @@ const forkCopied = ref('')
 let allowLeave = false
 let pendingPath = ''
 let forkCopiedTimer: ReturnType<typeof setTimeout> | null = null
-
-const router = useRouter()
 
 const draftFileType = computed<Language | 'file'>(() => {
   const ext = draftName.value.trim().split('.').pop()?.toLowerCase()
@@ -907,15 +938,16 @@ async function commitCreate() {
     draftError.value = 'Enter a name.'
     return
   }
+  if (value.includes('/')) {
+    draftError.value = 'Use a single name; "/" separates folders.'
+    return
+  }
 
   if (creatingKind.value === 'folder') {
-    if (!FOLDER_NAME_RE.test(value)) {
-      draftError.value = 'Use letters (including Chinese), numbers, dots, underscores or hyphens.'
-      return
-    }
     const path = parent ? `${parent}/${value}` : value
-    if (path.length > 100) {
-      draftError.value = 'Folder path is too long.'
+    const validation = validateFolderPath(path)
+    if (!validation.ok) {
+      draftError.value = validation.message
       return
     }
     if (allFolders.value.some(folder => folder.toLowerCase() === path.toLowerCase())) {
@@ -934,17 +966,13 @@ async function commitCreate() {
     return
   }
 
-  if (!FILE_NAME_RE.test(value)) {
-    draftError.value = 'File name must end with .html, .css or .js.'
-    return
-  }
-
-  const language = value.split('.').pop() as Language
   const path = parent ? `${parent}/${value}` : value
-  if (path.length > 120) {
-    draftError.value = 'File path is too long.'
+  const validation = validateFilePath(path)
+  if (!validation.ok) {
+    draftError.value = validation.message
     return
   }
+  const language = validation.language as Language
   if (files.value.some(file => file.name.toLowerCase() === path.toLowerCase())) {
     draftError.value = 'A file with that name already exists.'
     return
@@ -978,7 +1006,8 @@ async function onFolderUpload(event: Event) {
     const incoming = result.files.map(file => ({ ...file, name: `${prefix}${file.name}` }))
 
     for (const file of incoming) {
-      if (file.name.length > 120) throw new Error(`${file.name} is too long (max 120 characters).`)
+      const validation = validateFilePath(file.name)
+      if (!validation.ok) throw new Error(validation.message)
     }
 
     const merged = new Map(files.value.map(file => [file.name.toLowerCase(), file]))
@@ -1006,8 +1035,9 @@ async function onFolderUpload(event: Event) {
       }
     }
     if (folderSet.size > MAX_FOLDERS) throw new Error(`A project can have at most ${MAX_FOLDERS} folders.`)
-    if ([...folderSet].some(folder => folder.length > 100)) {
-      throw new Error('A folder path is too long (max 100 characters).')
+    for (const folder of folderSet) {
+      const validation = validateFolderPath(folder)
+      if (!validation.ok) throw new Error(validation.message)
     }
 
     files.value = nextFiles
@@ -1126,16 +1156,17 @@ async function commitRename() {
     renameValue.value = ''
     return
   }
+  if (value.includes('/')) {
+    renameError.value = 'Use a single name; "/" separates folders.'
+    renameValue.value = ''
+    return
+  }
   renameError.value = ''
 
   if (file) {
-    if (!FILE_NAME_RE.test(value)) {
-      renameError.value = 'File name must end with .html, .css or .js.'
-      renameValue.value = ''
-      return
-    }
-    if (newPath.length > 120) {
-      renameError.value = 'File path is too long.'
+    const validation = validateFilePath(newPath)
+    if (!validation.ok) {
+      renameError.value = validation.message
       renameValue.value = ''
       return
     }
@@ -1146,6 +1177,7 @@ async function commitRename() {
     }
 
     file.name = newPath
+    file.language = validation.language as Language
     selection.value = { kind: 'file', path: newPath }
     selectedKeys.value = new Set([fileKey(newPath)])
     renameValue.value = ''
@@ -1154,13 +1186,9 @@ async function commitRename() {
     return
   }
 
-  if (!FOLDER_NAME_RE.test(value)) {
-    renameError.value = 'Use letters (including Chinese), numbers, dots, underscores or hyphens.'
-    renameValue.value = ''
-    return
-  }
-  if (newPath.length > 100) {
-    renameError.value = 'Folder path is too long.'
+  const folderValidation = validateFolderPath(newPath)
+  if (!folderValidation.ok) {
+    renameError.value = folderValidation.message
     renameValue.value = ''
     return
   }
@@ -1171,11 +1199,21 @@ async function commitRename() {
   const renamedFolders = movingFolders.map(renamePath)
   const renamedFiles = movingFiles.map(item => renamePath(item.name))
 
-  if (renamedFolders.some(folder => folder.length > 100)
-    || renamedFiles.some(path => path.length > 120)) {
-    renameError.value = 'The renamed folder path is too long.'
-    renameValue.value = ''
-    return
+  for (const folder of renamedFolders) {
+    const validation = validateFolderPath(folder)
+    if (!validation.ok) {
+      renameError.value = validation.message
+      renameValue.value = ''
+      return
+    }
+  }
+  for (const path of renamedFiles) {
+    const validation = validateFilePath(path)
+    if (!validation.ok) {
+      renameError.value = validation.message
+      renameValue.value = ''
+      return
+    }
   }
 
   const remainingFolders = folders.value.filter(folder => !movingFolders.includes(folder))
@@ -1440,8 +1478,21 @@ function confirmLeave() {
 }
 
 function messageOf(err: unknown) {
-  const errorObject = err as { data?: { statusMessage?: string }, statusMessage?: string, message?: string }
-  return errorObject?.data?.statusMessage || errorObject?.statusMessage || errorObject?.message || 'Could not save the project.'
+  const errorObject = err as {
+    data?: {
+      detail?: string
+      statusMessage?: string
+      errors?: Array<{ message?: string }>
+    }
+    statusMessage?: string
+    message?: string
+  }
+  return errorObject?.data?.detail
+    || errorObject?.data?.statusMessage
+    || errorObject?.data?.errors?.[0]?.message
+    || errorObject?.statusMessage
+    || errorObject?.message
+    || 'Could not save the project.'
 }
 
 async function save() {
@@ -1474,6 +1525,8 @@ async function save() {
   saving.value = true
 
   try {
+    const wasEditing = Boolean(projectId.value)
+    const previousPath = savedPath.value
     const body = {
       name: trimmedName,
       slug: slug.value,
@@ -1487,11 +1540,12 @@ async function save() {
       }))
     }
 
-    const response = projectId.value
+    const response = wasEditing && projectId.value
       ? await $fetch<{ project: SavedProject }>(`/api/projects/${projectId.value}`, { method: 'PUT', body })
       : await $fetch<{ project: SavedProject }>('/api/projects', { method: 'POST', body })
 
     projectId.value = response.project.sid
+    slug.value = response.project.slug
     savedAsPassword.value = response.project.visibility === 'password'
     savedPath.value = response.project.path
     qrSrc.value = ''
@@ -1500,6 +1554,9 @@ async function save() {
     dirty.value = false
     lastSaved.value = new Date()
     settingsDialog.value = false
+    if (wasEditing && response.project.path !== previousPath) {
+      await router.replace(response.project.path)
+    }
   } catch (err) {
     error.value = messageOf(err)
   } finally {

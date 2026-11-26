@@ -24,14 +24,10 @@ import {
 } from './projects'
 import { useDb } from './db'
 import { createProjectForUser } from './projects'
+import { validateFilePath } from '../../shared/project-paths'
 
 const CONTENT_BASE = (process.env.NUXT_PUBLIC_CONTENT_URL || 'https://dropcontent.micropue.com.cn').replace(/\/+$/, '')
 const MAX_MESSAGE = 200
-const FILE_EXTENSIONS: Record<string, ProjectLanguage> = {
-  html: 'html',
-  css: 'css',
-  js: 'js'
-}
 
 interface ApiProjectRow extends RowDataPacket {
   sid: string
@@ -93,18 +89,6 @@ function filePath(value: unknown, index: number) {
   return value.trim()
 }
 
-function fileLanguage(path: string, index: number) {
-  const baseName = path.split('/').pop() || ''
-  const extension = baseName.split('.').pop()?.toLowerCase() || ''
-  const language = FILE_EXTENSIONS[extension]
-  if (!language) {
-    throw apiError(422, 'validation_failed', 'Validation failed', `files[${index}].path must end with .html, .css or .js.`, {
-      errors: [{ path: `files[${index}].path`, message: 'Unsupported file type.' }]
-    })
-  }
-  return language
-}
-
 function mapApiFiles(value: unknown): ProjectFileInput[] {
   if (!Array.isArray(value)) {
     throw apiError(422, 'validation_failed', 'Validation failed', 'files must be an array.', {
@@ -124,6 +108,12 @@ function mapApiFiles(value: unknown): ProjectFileInput[] {
     const file = entry as Record<string, unknown>
     assertNoUnknownFields(file, ['path', 'content'])
     const path = filePath(file.path, index)
+    const validation = validateFilePath(path)
+    if (!validation.ok) {
+      throw apiError(422, 'validation_failed', 'Validation failed', validation.message, {
+        errors: [{ path: `files[${index}].path`, message: validation.message }]
+      })
+    }
     if (typeof file.content !== 'string') {
       throw apiError(422, 'validation_failed', 'Validation failed', `files[${index}].content must be a string.`, {
         errors: [{ path: `files[${index}].content`, message: 'Content must be a string.' }]
@@ -131,10 +121,25 @@ function mapApiFiles(value: unknown): ProjectFileInput[] {
     }
     return {
       name: path,
-      language: fileLanguage(path, index),
+      language: validation.language!,
       content: file.content
     }
   })
+}
+
+function projectParserErrors(err: unknown) {
+  const raw = (err as { data?: { errors?: unknown } })?.data?.errors
+  if (!Array.isArray(raw)) return undefined
+  const errors = raw.flatMap(issue => {
+    if (!issue || typeof issue !== 'object') return []
+    const value = issue as { path?: unknown; message?: unknown }
+    if (typeof value.message !== 'string' || !value.message) return []
+    return [{
+      ...(typeof value.path === 'string' && value.path ? { path: value.path } : {}),
+      message: value.message
+    }]
+  })
+  return errors.length ? errors : undefined
 }
 
 function validateWithProjectParser(input: Record<string, unknown>) {
@@ -142,7 +147,10 @@ function validateWithProjectParser(input: Record<string, unknown>) {
     return parseProjectInput(input)
   } catch (err) {
     if ((err as { statusCode?: number })?.statusCode === 400) {
-      throw apiError(422, 'validation_failed', 'Validation failed', String((err as Error).message || 'Invalid project data.'))
+      const detail = String((err as { statusMessage?: unknown })?.statusMessage || (err as Error).message || 'Invalid project data.')
+      throw apiError(422, 'validation_failed', 'Validation failed', detail, {
+        errors: projectParserErrors(err)
+      })
     }
     throw err
   }

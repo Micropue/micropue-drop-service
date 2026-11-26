@@ -63,7 +63,7 @@
       <ul class="project-list">
         <li v-for="project in projects" :key="project.sid" class="project-row">
           <div class="project-main">
-            <NuxtLink :to="{ path: '/new', query: { edit: project.sid } }" class="project-name">
+            <NuxtLink :to="project.path" class="project-name">
               {{ project.name }}
             </NuxtLink>
             <span class="project-meta">
@@ -95,7 +95,7 @@
           </label>
 
           <Button as-child v-slot="slotProps" severity="secondary">
-            <NuxtLink :to="{ path: '/new', query: { edit: project.sid } }" :class="[slotProps.class, 'edit-button']"
+            <NuxtLink :to="project.path" :class="[slotProps.class, 'edit-button']"
               :aria-label="`Edit ${project.name}`" v-bind="slotProps.a11yAttrs">
               <PenToSquare aria-hidden="true" />
               <span>Edit</span>

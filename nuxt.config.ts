@@ -1,5 +1,6 @@
 import { definePreset } from '@primeuix/themes'
 import Aura from '@primeuix/themes/aura'
+import { fileURLToPath } from 'node:url'
 
 // 黑/白单色主题：primary 映射到中性色阶
 // light：近黑按钮 + 白字；dark：白按钮 + 黑字
@@ -117,6 +118,15 @@ export default defineNuxtConfig({
     public: {
       siteUrl,
       contentUrl
+    }
+  },
+  hooks: {
+    'pages:extend'(pages) {
+      pages.push({
+        name: 'project-editor',
+        path: '/:username/:slug',
+        file: fileURLToPath(new URL('./app/pages/new.vue', import.meta.url))
+      })
     }
   },
   routeRules: {

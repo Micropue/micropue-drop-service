@@ -395,7 +395,7 @@ export async function acceptFork(event: H3Event, code: unknown, requestedSlug?: 
           visibility: source.visibility,
           enabled: true,
           path: projectPath(user, targetSlug),
-          editorPath: `/new?edit=${encodeURIComponent(sid)}`
+          editorPath: projectPath(user, targetSlug)
         }
       } satisfies AcceptedFork
     } catch (err) {

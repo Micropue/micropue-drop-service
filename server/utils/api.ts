@@ -83,6 +83,18 @@ function problemFromError(event: H3Event, err: unknown) {
             ? 'payload_too_large'
             : 'validation_failed'
     const message = String((err as { statusMessage?: unknown })?.statusMessage || 'Request failed.')
+    const rawErrors = (err as { data?: { errors?: unknown } })?.data?.errors
+    const errors = Array.isArray(rawErrors)
+      ? rawErrors.flatMap(issue => {
+          if (!issue || typeof issue !== 'object') return []
+          const value = issue as { path?: unknown; message?: unknown }
+          if (typeof value.message !== 'string' || !value.message) return []
+          return [{
+            ...(typeof value.path === 'string' && value.path ? { path: value.path } : {}),
+            message: value.message
+          }]
+        }).slice(0, 50)
+      : []
     return {
       status: statusCode,
       body: {
@@ -91,7 +103,8 @@ function problemFromError(event: H3Event, err: unknown) {
         status: statusCode,
         code,
         detail: message,
-        requestId: apiRequestId(event)
+        requestId: apiRequestId(event),
+        ...(errors.length ? { errors } : {})
       }
     }
   }

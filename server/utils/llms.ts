@@ -139,7 +139,7 @@ ${linkList(documentation)}
 4. A successful deployment is immediately available on the content domain. There is no build pipeline to wait for.
 5. Public projects receive indexable URLs. Password-protected and disabled projects are not included in the content sitemap; password projects also send \`X-Robots-Tag: noindex\`.
 
-The editor is available at ${siteUrl}/new and the project dashboard at ${siteUrl}/dashboard. Both require authentication and are excluded from search indexes.
+Create projects at ${siteUrl}/new and edit existing projects at ${siteUrl}/{username}/{slug}. Saving a slug change redirects to the new canonical editor URL. The legacy ${siteUrl}/new?edit={sid} URL remains readable but is replaced with the canonical URL. The project dashboard is at ${siteUrl}/dashboard. These pages require authentication and are excluded from search indexes.
 
 ## Developer tools
 
@@ -178,6 +178,10 @@ The editor is available at ${siteUrl}/new and the project dashboard at ${siteUrl
 - 512 KiB maximum per file.
 - 1 MiB maximum project size.
 - 50 folders maximum.
+- 100 characters maximum per folder path.
+- 120 characters maximum per file path.
+- 80 characters maximum per file name, including the extension.
+- Folder and file path segments may contain only Unicode letters (including Chinese), numbers, \`.\`, \`_\` and \`-\`. Spaces, brackets such as \`(\` and \`)\`, and other symbols are rejected. File names must start with a letter or number.
 - 40 characters maximum project slug.
 - API v1 read requests: 300 per minute per key; writes: 60 per minute; deploys: 20 per minute.
 
@@ -189,7 +193,7 @@ The editor is available at ${siteUrl}/new and the project dashboard at ${siteUrl
 - The main sitemap lists the home, developer documentation, privacy policy and AI-readable references.
 - The content sitemap lists public, enabled projects with an \`index.html\`, using the database deployment timestamp as \`lastmod\`.
 - Temporary, generated, generic and duplicate project entries are omitted from the content sitemap.
-- \`/sign\`, \`/dashboard\`, \`/new\`, \`/account\` and \`/developers/keys\` are private workflow routes and send both a robots meta tag and \`X-Robots-Tag: noindex, nofollow\`.
+- \`/sign\`, \`/dashboard\`, \`/new\`, \`/fork/**\`, \`/account\` and \`/developers/keys\` are private workflow routes and send both a robots meta tag and \`X-Robots-Tag: noindex, nofollow\`. The canonical \`/{username}/{slug}\` editor route also sends a noindex robots meta tag.
 
 ## Contact and source
 

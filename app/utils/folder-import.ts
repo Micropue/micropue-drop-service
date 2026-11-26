@@ -1,5 +1,10 @@
 // 文件夹上传的纯前端解析：保留内部目录，只接收 html/css/js
 // 限制与 server/utils/projects.ts 保持一致
+import {
+  validateFilePath,
+  validateFolderPath
+} from '#shared/project-paths'
+
 export type FolderLanguage = 'html' | 'css' | 'js'
 
 export interface FolderFileLike {
@@ -25,8 +30,6 @@ const MAX_FILES = 20
 const MAX_FOLDERS = 50
 const MAX_FILE_BYTES = 512 * 1024
 const MAX_TOTAL_BYTES = 1024 * 1024
-const FILE_RE = /^[\p{L}\p{N}][\p{L}\p{N}._-]{0,79}\.(html|css|js)$/u
-const SEGMENT_RE = /^[\p{L}\p{N}._-]+$/u
 
 export async function parseFolderFiles(list: FolderFileLike[]): Promise<FolderImportResult> {
   const entries: { file: FolderFileLike; path: string }[] = []
@@ -50,10 +53,8 @@ export async function parseFolderFiles(list: FolderFileLike[]): Promise<FolderIm
       skipped++
       continue
     }
-    if (!FILE_RE.test(base) || path.length > 120
-      || path.split('/').some(segment => !SEGMENT_RE.test(segment) || segment === '.' || segment === '..')) {
-      throw new Error(`Cannot import ${relative}. Use lowercase .html/.css/.js names and letters (including Chinese), numbers, dots, underscores or hyphens.`)
-    }
+    const validation = validateFilePath(path)
+    if (!validation.ok) throw new Error(`Cannot import ${relative}. ${validation.message}`)
 
     const key = path.toLowerCase()
     if (seen.has(key)) throw new Error(`Duplicate file path: ${path}`)
@@ -90,8 +91,9 @@ export async function parseFolderFiles(list: FolderFileLike[]): Promise<FolderIm
     }
   }
   if (folderSet.size > MAX_FOLDERS) throw new Error(`A project can have at most ${MAX_FOLDERS} folders.`)
-  if ([...folderSet].some(folder => folder.length > 100)) {
-    throw new Error('A folder path is too long (max 100 characters).')
+  for (const folder of folderSet) {
+    const validation = validateFolderPath(folder)
+    if (!validation.ok) throw new Error(`Cannot import folder ${folder}. ${validation.message}`)
   }
 
   return {
