@@ -304,7 +304,7 @@ app/
 public/          favicon.ico, robots.txt, file-icons/ (Material Icon Theme, MIT)
 server/
   api/auth/      bits.get.ts, bits/callback.get.ts, me.get.ts, logout.post.ts
-  api/projects/  by-path.get.ts, index.get.ts, index.post.ts, [sid].get.ts, [sid].put.ts, [sid].patch.ts, [sid].delete.ts, [sid]/fork.get.ts, [sid]/fork.patch.ts
+  api/projects/  by-path.get.ts, index.get.ts, index.post.ts, [sid].get.ts, [sid].put.ts, [sid].patch.ts, [sid].delete.ts, [sid]/settings.patch.ts, [sid]/fork.get.ts, [sid]/fork.patch.ts
   api/fork-invites/ [code].get.ts, [code].post.ts
   api/developer/ keys/ (create, list, revoke API keys)
   api/unlock/    [sid].post.ts (password unlock)

@@ -544,6 +544,13 @@ async function confirmDelete() {
   color: var(--p-text-muted-color);
   cursor: pointer;
   user-select: none;
+
+  :deep(.p-toggleswitch-handle) {
+    inset-block-start: 50%;
+    inset-block-end: auto;
+    margin-block: 0;
+    transform: translateY(-50%);
+  }
 }
 
 a {

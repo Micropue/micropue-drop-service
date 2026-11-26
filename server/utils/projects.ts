@@ -26,11 +26,14 @@ export interface ProjectFileInput {
   content: string
 }
 
-export interface ProjectInput {
+export interface ProjectSettingsInput {
   name: string
   slug: string
   visibility: ProjectVisibility
   password?: string
+}
+
+export interface ProjectInput extends ProjectSettingsInput {
   folders: string[]
   files: ProjectFileInput[]
 }
@@ -96,7 +99,7 @@ export async function requireUser(event: H3Event): Promise<DropUser> {
   return user
 }
 
-export function parseProjectInput(body: unknown): ProjectInput {
+export function parseProjectSettingsInput(body: unknown): ProjectSettingsInput {
   if (!body || typeof body !== 'object') fail('Invalid project data.')
 
   const raw = body as Record<string, unknown>
@@ -118,6 +121,13 @@ export function parseProjectInput(body: unknown): ProjectInput {
   if (password && (password.length < 6 || password.length > 128)) {
     fail('Password must be between 6 and 128 characters.')
   }
+
+  return { name, slug, visibility, password: password || undefined }
+}
+
+export function parseProjectInput(body: unknown): ProjectInput {
+  const settings = parseProjectSettingsInput(body)
+  const raw = body as Record<string, unknown>
 
   const folders: string[] = []
   if (raw.folders !== undefined) {
@@ -176,7 +186,7 @@ export function parseProjectInput(body: unknown): ProjectInput {
 
   if (totalBytes > MAX_TOTAL_BYTES) fail('Project files are larger than 1 MB in total.')
 
-  return { name, slug, visibility, password: password || undefined, folders: mergeFolders(folders, files), files }
+  return { ...settings, folders: mergeFolders(folders, files), files }
 }
 
 export function hashPassword(password: string) {
@@ -536,6 +546,58 @@ export async function updateProject(event: H3Event, sid: string, input: ProjectI
     revision,
     folders: input.folders,
     deployment,
+    path: projectPath(user, input.slug)
+  }
+}
+
+export async function updateProjectSettings(event: H3Event, sid: string, input: ProjectSettingsInput) {
+  const user = await requireUser(event)
+  requireUsername(user)
+
+  const conn = await useDb().getConnection()
+  let revision = 1
+  let passwordHash: string | null = null
+
+  try {
+    await conn.beginTransaction()
+
+    const [rows] = await conn.query<ProjectRow[]>(
+      'SELECT `sid`, `password_hash`, `revision` FROM `projects` WHERE `sid` = ? AND `owner_bits_id` = ? LIMIT 1 FOR UPDATE',
+      [sid, user.bitsId]
+    )
+    const existing = rows[0]
+    if (!existing) throw createError({ statusCode: 404, statusMessage: 'Project not found.' })
+
+    if (input.visibility === 'password') {
+      passwordHash = input.password ? hashPassword(input.password) : existing.password_hash
+      if (!passwordHash) fail('Password is required for a password-protected project.')
+    }
+
+    await conn.query(
+      'UPDATE `projects` SET `slug` = ?, `name` = ?, `visibility` = ?, `password_hash` = ?, `revision` = `revision` + 1, `updated_at` = NOW() WHERE `sid` = ? AND `owner_bits_id` = ?',
+      [input.slug, input.name, input.visibility, passwordHash, sid, user.bitsId]
+    )
+    const [revisionRows] = await conn.query<RowDataPacket[]>(
+      'SELECT `revision` FROM `projects` WHERE `sid` = ? LIMIT 1',
+      [sid]
+    )
+    revision = Number(revisionRows[0]?.revision || existing.revision + 1)
+
+    await conn.commit()
+  } catch (err) {
+    await conn.rollback()
+    throw projectError(err)
+  } finally {
+    conn.release()
+  }
+
+  return {
+    sid,
+    name: input.name,
+    slug: input.slug,
+    visibility: input.visibility,
+    hasPassword: Boolean(passwordHash),
+    revision,
     path: projectPath(user, input.slug)
   }
 }

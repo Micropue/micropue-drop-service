@@ -199,7 +199,7 @@
           <Times aria-hidden="true" />
           <span>Cancel</span>
         </Button>
-        <Button :loading="saving" @click="save">
+        <Button :loading="saving" @click="save({ settingsOnly: true })">
           <SaveIcon aria-hidden="true" />
           <span>{{ saving ? 'Saving…' : 'Save project' }}</span>
         </Button>
@@ -362,13 +362,20 @@ interface ExplorerNode {
 
 type TreeSelection = { kind: 'file' | 'folder'; path: string }
 
-interface SavedProject {
+interface ProjectMetadata {
   sid: string
   name: string
   slug: string
   visibility: Visibility
-  folders: string[]
   path: string
+  hasPassword?: boolean
+  revision?: number
+}
+
+interface SavedProject extends ProjectMetadata {
+  folders: string[]
+  files: DraftFile[]
+  hasPassword: boolean
 }
 
 interface ForkSettings {
@@ -666,7 +673,7 @@ function syncFromTree() {
   selectedKeys.value = nextSelected
   const activeAt = active ? nextFiles.indexOf(active) : -1
   activeIndex.value = activeAt >= 0 ? activeAt : 0
-  dirty.value = true
+  filesDirty.value = true
 }
 
 const projectId = ref<string | null>(null)
@@ -674,7 +681,9 @@ const savedAsPassword = ref(false)
 const savedPath = ref<string>('')
 const saving = ref(false)
 const error = ref('')
-const dirty = ref(false)
+const settingsDirty = ref(false)
+const filesDirty = ref(false)
+const dirty = computed(() => settingsDirty.value || filesDirty.value)
 const loadingProject = ref(isEditing.value)
 const loadFailed = ref(false)
 const lastSaved = ref<Date | null>(null)
@@ -717,7 +726,8 @@ async function loadProject() {
     // 迁移来的密码项目没有密码：打开设置让所有者补一个
     if (project.visibility === 'password' && !project.hasPassword) settingsDialog.value = true
     await nextTick()
-    dirty.value = false
+    settingsDirty.value = false
+    filesDirty.value = false
     if (querySid && !usernameParam && project.path) {
       await router.replace(project.path)
     }
@@ -769,8 +779,13 @@ watch(name, value => {
     .slice(0, 40)
 })
 
-watch([name, slug, visibility, password, files, folders], () => {
-  dirty.value = true
+watch([name, slug, visibility, password], () => {
+  settingsDirty.value = true
+  error.value = ''
+})
+
+watch([files, folders], () => {
+  filesDirty.value = true
   error.value = ''
 }, { deep: true })
 
@@ -1495,11 +1510,13 @@ function messageOf(err: unknown) {
     || 'Could not save the project.'
 }
 
-async function save() {
+async function save(options: { settingsOnly?: boolean } = {}) {
   if (saving.value || loadingProject.value) return
 
   error.value = ''
   const trimmedName = name.value.trim()
+  const projectSid = projectId.value
+  const settingsOnly = Boolean(projectSid && (options.settingsOnly || !filesDirty.value))
 
   if (!trimmedName) {
     error.value = 'Project name is required.'
@@ -1517,7 +1534,7 @@ async function save() {
     error.value = 'Password must be at least 6 characters.'
     return
   }
-  if (!files.value.length) {
+  if (!settingsOnly && !files.value.length) {
     error.value = 'Add at least one file.'
     return
   }
@@ -1525,13 +1542,16 @@ async function save() {
   saving.value = true
 
   try {
-    const wasEditing = Boolean(projectId.value)
+    const wasEditing = Boolean(projectSid)
     const previousPath = savedPath.value
-    const body = {
+    const settingsBody = {
       name: trimmedName,
       slug: slug.value,
       visibility: visibility.value,
-      password: password.value || undefined,
+      password: password.value || undefined
+    }
+    const body = {
+      ...settingsBody,
       folders: allFolders.value,
       files: files.value.map(file => ({
         name: file.name,
@@ -1540,18 +1560,27 @@ async function save() {
       }))
     }
 
-    const response = wasEditing && projectId.value
-      ? await $fetch<{ project: SavedProject }>(`/api/projects/${projectId.value}`, { method: 'PUT', body })
-      : await $fetch<{ project: SavedProject }>('/api/projects', { method: 'POST', body })
+    const response = projectSid
+      ? settingsOnly
+        ? await $fetch<{ project: ProjectMetadata }>(`/api/projects/${projectSid}/settings`, {
+            method: 'PATCH',
+            body: settingsBody
+          })
+        : await $fetch<{ project: ProjectMetadata }>(`/api/projects/${projectSid}`, { method: 'PUT', body })
+      : await $fetch<{ project: ProjectMetadata }>('/api/projects', { method: 'POST', body })
 
     projectId.value = response.project.sid
+    name.value = response.project.name
     slug.value = response.project.slug
+    visibility.value = response.project.visibility
     savedAsPassword.value = response.project.visibility === 'password'
+      && response.project.hasPassword !== false
     savedPath.value = response.project.path
     qrSrc.value = ''
     password.value = ''
     await nextTick()
-    dirty.value = false
+    settingsDirty.value = false
+    if (!settingsOnly) filesDirty.value = false
     lastSaved.value = new Date()
     settingsDialog.value = false
     if (wasEditing && response.project.path !== previousPath) {
@@ -1571,7 +1600,7 @@ function onKeydown(event: KeyboardEvent) {
   }
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
     event.preventDefault()
-    if (settingsDialog.value) void save()
+    if (settingsDialog.value) void save({ settingsOnly: true })
     else handleSave()
   }
 }
@@ -2323,6 +2352,13 @@ onBeforeRouteLeave(to => {
     align-self: center;
     flex: none;
     margin: 0;
+  }
+
+  :deep(.fork-switch .p-toggleswitch-handle) {
+    inset-block-start: 50%;
+    inset-block-end: auto;
+    margin-block: 0;
+    transform: translateY(-50%);
   }
 }
 
