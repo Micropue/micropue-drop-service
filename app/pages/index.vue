@@ -119,6 +119,7 @@ const highlights = [
   position: relative;
   width: 90%;
   max-width: 1300px;
+  min-height: calc(100dvh - 70px);
   margin: 0 auto;
   padding: clamp(4rem, 12vh, 9rem) 0 2rem;
 }
