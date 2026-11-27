@@ -24,31 +24,38 @@
       <Button @click="openCreate">Create your first key</Button>
     </section>
 
-    <ul v-else class="key-list" aria-label="API keys">
-      <li v-for="key in keys" :key="key.id" class="key-row">
-        <div class="key-main">
-          <div class="key-title">
-            <span class="key-name">{{ key.name }}</span>
-            <span v-if="key.status === 'expired'" class="status status--expired">expired</span>
+    <template v-else>
+      <ul class="key-list" aria-label="API keys">
+        <li v-for="key in keys" :key="key.id" class="key-row">
+          <div class="key-main">
+            <div class="key-title">
+              <span class="key-name">{{ key.name }}</span>
+              <span v-if="key.status === 'expired'" class="status status--expired">expired</span>
+            </div>
+            <code class="prefix">{{ key.prefix }}…</code>
+            <div class="scopes">
+              <span v-for="scope in key.scopes" :key="scope">{{ scope }}</span>
+            </div>
           </div>
-          <code class="prefix">{{ key.prefix }}…</code>
-          <div class="scopes">
-            <span v-for="scope in key.scopes" :key="scope">{{ scope }}</span>
-          </div>
-        </div>
-        <dl class="key-meta">
-          <div><dt>Created</dt><dd>{{ formatDate(key.createdAt) }}</dd></div>
-          <div><dt>Last used</dt><dd>{{ key.lastUsedAt ? formatDate(key.lastUsedAt) : 'Never' }}</dd></div>
-          <div><dt>Expires</dt><dd>{{ key.expiresAt ? formatDate(key.expiresAt) : 'Never' }}</dd></div>
-        </dl>
-        <TrafficBadge class="traffic-cell" :traffic="key.traffic" :subject="key.name" unit-singular="call"
-          unit-plural="calls" @click="openTraffic(key)" />
-        <Button v-if="key.status === 'active'" class="revoke-button" text rounded
-          :aria-label="`Revoke ${key.name}`" title="Revoke key" @click="askRevoke(key)">
-          <Trash aria-hidden="true" />
-        </Button>
-      </li>
-    </ul>
+          <dl class="key-meta">
+            <div><dt>Created</dt><dd>{{ formatDate(key.createdAt) }}</dd></div>
+            <div><dt>Last used</dt><dd>{{ key.lastUsedAt ? formatDate(key.lastUsedAt) : 'Never' }}</dd></div>
+            <div><dt>Expires</dt><dd>{{ key.expiresAt ? formatDate(key.expiresAt) : 'Never' }}</dd></div>
+          </dl>
+          <TrafficBadge class="traffic-cell" :traffic="key.traffic" :subject="key.name" unit-singular="call"
+            unit-plural="calls" @click="openTraffic(key)" />
+          <Button v-if="key.status === 'active'" class="revoke-button" text rounded
+            :aria-label="`Revoke ${key.name}`" title="Revoke key" @click="askRevoke(key)">
+            <Trash aria-hidden="true" />
+          </Button>
+        </li>
+      </ul>
+
+      <Paginator v-if="total > perPage" :first="(page - 1) * perPage" :rows="perPage"
+        :total-records="total" template="PrevPageLink CurrentPageReport NextPageLink"
+        current-page-report-template="{currentPage} / {totalPages}"
+        @page="event => (page = event.page + 1)" />
+    </template>
 
     <Dialog v-model:visible="createOpen" modal header="Create API key" :style="{ width: 'min(520px, 92vw)' }"
       :draggable="false">
@@ -134,6 +141,7 @@
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
+import Paginator from 'primevue/paginator'
 import Select from 'primevue/select'
 import Plus from '@primeicons/vue/plus'
 import Trash from '@primeicons/vue/trash'
@@ -162,13 +170,32 @@ interface ApiKey {
 const { user } = useAuthUser()
 if (!user.value) await navigateTo('/sign')
 
-const { data, pending, refresh } = await useFetch<{ keys: ApiKey[]; maxActiveKeys: number }>('/api/developer/keys')
+interface ApiKeyListResponse {
+  keys: ApiKey[]
+  maxActiveKeys: number
+  activeKeyCount: number
+  page: number
+  perPage: number
+  total: number
+  pages: number
+}
+
+const page = ref(1)
+const perPage = 5
+const { data, pending, refresh } = await useFetch<ApiKeyListResponse>('/api/developer/keys', {
+  query: { page, perPage }
+})
 const error = ref('')
 
 const keys = computed(() => data.value?.keys ?? [])
 const maxActiveKeys = computed(() => data.value?.maxActiveKeys ?? 100)
-const activeKeyCount = computed(() => keys.value.filter(key => key.status === 'active').length)
+const activeKeyCount = computed(() => data.value?.activeKeyCount ?? 0)
 const keyLimitReached = computed(() => activeKeyCount.value >= maxActiveKeys.value)
+const total = computed(() => data.value?.total ?? 0)
+
+watch(() => data.value?.page, value => {
+  if (value && value !== page.value) page.value = value
+})
 
 const allScopes = [
   { value: 'projects:read', label: 'Read projects', description: 'List projects and read files and deployments.' },
@@ -239,6 +266,7 @@ async function createKey() {
     createOpen.value = false
     secretOpen.value = true
     await refresh()
+    page.value = 1
   } catch (err) {
     createError.value = (err as { data?: { statusMessage?: string } })?.data?.statusMessage || 'Could not create the key.'
   } finally {
@@ -383,6 +411,12 @@ function formatDate(value: string) {
   border: 1px solid var(--p-content-border-color);
   border-radius: 0.75rem;
   list-style: none;
+}
+
+:deep(.p-paginator) {
+  margin-top: 1rem;
+  background: transparent;
+  border: 0;
 }
 
 .key-row {

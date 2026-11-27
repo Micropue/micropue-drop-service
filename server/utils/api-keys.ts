@@ -216,24 +216,46 @@ export async function createApiKey(
   throw apiError(500, 'key_generation_failed', 'Could not create key', 'Please try again.')
 }
 
-export async function listApiKeys(user: DropUser) {
+export async function listApiKeys(user: DropUser, pagination: { page: number; perPage: number }) {
+  const [countRows] = await useDb().query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS \`count\`,
+            COALESCE(SUM(CASE
+              WHEN \`expires_at\` IS NULL OR \`expires_at\` > NOW() THEN 1
+              ELSE 0
+            END), 0) AS \`active_count\`
+     FROM \`api_keys\`
+     WHERE \`owner_bits_id\` = ? AND \`revoked_at\` IS NULL`,
+    [user.bitsId]
+  )
+  const total = Number(countRows[0]?.count ?? 0)
+  const activeKeyCount = Number(countRows[0]?.active_count ?? 0)
+  const pages = Math.max(1, Math.ceil(total / pagination.perPage))
+  const page = Math.min(Math.max(1, pagination.page), pages)
+
   const [rows] = await useDb().query<ApiKeyRow[]>(
     `SELECT \`id\`, \`owner_bits_id\`, \`name\`, \`prefix\`, \`scopes\`,
             \`created_at\`, \`last_used_at\`, \`expires_at\`, \`revoked_at\`
      FROM \`api_keys\`
      WHERE \`owner_bits_id\` = ? AND \`revoked_at\` IS NULL
-     ORDER BY \`created_at\` DESC`,
-    [user.bitsId]
+     ORDER BY \`created_at\` DESC
+     LIMIT ? OFFSET ?`,
+    [user.bitsId, pagination.perPage, (page - 1) * pagination.perPage]
   )
 
   const trafficWindow = await recentDays()
-  const [usageRows] = await useDb().query<RowDataPacket[]>(
-    `SELECT u.\`api_key_id\`, DATE_FORMAT(u.\`day\`, '%Y-%m-%d') AS \`day\`, u.\`calls\`
-     FROM \`api_key_usage\` u
-     JOIN \`api_keys\` k ON k.\`id\` = u.\`api_key_id\`
-     WHERE k.\`owner_bits_id\` = ? AND u.\`day\` BETWEEN ? AND ?`,
-    [user.bitsId, trafficWindow.start, trafficWindow.today]
-  )
+  const keyIds = rows.map(row => String(row.id))
+  let usageRows: RowDataPacket[] = []
+  if (keyIds.length) {
+    const placeholders = keyIds.map(() => '?').join(', ')
+    const [usage] = await useDb().query<RowDataPacket[]>(
+      `SELECT \`api_key_id\`, DATE_FORMAT(\`day\`, '%Y-%m-%d') AS \`day\`, \`calls\`
+       FROM \`api_key_usage\`
+       WHERE \`api_key_id\` IN (${placeholders}) AND \`day\` BETWEEN ? AND ?`,
+      [...keyIds, trafficWindow.start, trafficWindow.today]
+    )
+    usageRows = usage
+  }
+
   const usageByKey = new Map<string, Map<string, number>>()
   for (const row of usageRows) {
     const id = String(row.api_key_id)
@@ -245,10 +267,17 @@ export async function listApiKeys(user: DropUser) {
     counts.set(String(row.day), Number(row.calls || 0))
   }
 
-  return rows.map<ApiKeyListItem>(row => ({
-    ...rowToKey(row),
-    traffic: summarizeTraffic(trafficWindow, usageByKey.get(String(row.id)) || new Map())
-  }))
+  return {
+    keys: rows.map<ApiKeyListItem>(row => ({
+      ...rowToKey(row),
+      traffic: summarizeTraffic(trafficWindow, usageByKey.get(String(row.id)) || new Map())
+    })),
+    activeKeyCount,
+    page,
+    perPage: pagination.perPage,
+    total,
+    pages
+  }
 }
 
 export async function revokeApiKey(user: DropUser, id: string) {
